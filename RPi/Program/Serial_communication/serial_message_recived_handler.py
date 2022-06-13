@@ -19,7 +19,7 @@ class SerialMessageRecivedHandler(Thread):
         self.valid_commands = ['reset', 'IMU', 'SensorArduino', 'StepperArduino',
                                'depth_beneath_rov_offset', 'depth_rov_offset', 'pid_depth_p',
                                'pid_depth_i', 'pid_depth_d', 'pid_roll_p', 'pid_roll_i', 'pid_roll_d',
-                               'auto_mode', 'manual_wing_pos', 'set_point_depth',
+                               'auto_mode', 'manual_wing_pos',
                                'emergency_surface'
                                ]
         self.message_queue = message_queue
@@ -37,15 +37,19 @@ class SerialMessageRecivedHandler(Thread):
             try:
                 received_message = self.message_queue.get(timeout=0.01)
                 counter_sent = counter_sent + 1
-                message = received_message.split(':',1)
-                if message[0] in  self.valid_commands:
+                # print(received_message)
+                message = received_message.split(':', 1)
+                if message[0] in self.valid_commands:
+                    print("----------------------")
+                    print(received_message)
+                    print("----------------------")
                     self.message_received_queue.put(received_message)
                 elif message[0] in self.valid_alarm_list:
                     self.__add_alarm(message)
                 else:
                     self.__add_sensor(message)
             except queue.Empty:
-                counter_skip = counter_skip +1
+                counter_skip = counter_skip + 1
             except ValueError:
                 pass
 
