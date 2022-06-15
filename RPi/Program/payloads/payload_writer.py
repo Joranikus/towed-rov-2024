@@ -81,8 +81,9 @@ class PayloadWriter(Thread):
                 "payload_name": "response",
                 "payload_data": json_command
             }
+            print(json_command)
             self.message_queue.put(command_structure)
-            print(command_structure, "responce")
+            #print(command_structure, "responce")
         except queue.Empty:
             pass
         except IndexError:

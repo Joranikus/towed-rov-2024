@@ -90,7 +90,6 @@ class SerialHandler(Thread):
                 self.serial_connected.append('StepperArduino:' + com_port)
         return True
 
-
     def find_com_ports(self):
         """
         Search for com ports
@@ -108,13 +107,12 @@ class SerialHandler(Thread):
         :param baud_rate: the baud rate for the serial communication
         :return:
         """
-        serial_reader = SerialWriterReader(output_queue, input_queue, com_port, baud_rate,self.from_arduino_to_arduino_queue)
+        serial_reader = SerialWriterReader(output_queue, input_queue, com_port, baud_rate,
+                                           self.from_arduino_to_arduino_queue)
         serial_reader.daemon = True
         serial_reader.start()
 
         return serial_reader
-
-
 
 
 if __name__ == '__main__':

@@ -1,7 +1,7 @@
 import glob
 import serial
 import sys
-from time import sleep 
+from time import sleep
 
 
 class SerialFinder:
@@ -40,12 +40,14 @@ class SerialFinder:
                 try:
                     sleep(2)
                     if serial_port.in_waiting:
+                        #print("me")
                         message_received = serial_port.readline()
                         
                         if message_received:
                             message_received = message_received.strip().decode('utf-8').split(self.seperation_char)
 
                             port_name = message_received[0].replace('<', '')
+                            print(port_name)
                             if 'IMU' in port_name and self.baud_rate == 57600:
                                 self.port_name_list[key] = 'IMU'
                                 print('Found IMU')
@@ -53,10 +55,12 @@ class SerialFinder:
                             elif 'SensorArduino' in port_name:
                                 self.port_name_list[key] = 'SensorArduino'
                                 print(f'SensorArduino is connected to {serial_port.name} and works with {self.baud_rate} Baud')
-
+                                serial_port.write("<reset:True>".encode('utf-8'))
+                                
                             elif 'StepperArduino' in port_name:
                                 self.port_name_list[key] = 'StepperArduino'
                                 print(f'StepperArduino is connected to {serial_port.name} and works with {self.baud_rate} Baud')
+                                serial_port.write("<reset:True>".encode('utf-8'))
                         
                         serial_port.reset_input_buffer()
                         serial_port.close()

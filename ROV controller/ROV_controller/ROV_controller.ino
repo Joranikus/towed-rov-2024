@@ -403,6 +403,7 @@ void translateString(String s) {
   }
 
   else if (part01.equals("depth")) {
+  println("depth of stystem",part02, part02.toInt)
     depth = part02.toInt();
   }
 

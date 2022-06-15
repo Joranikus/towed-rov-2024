@@ -12,13 +12,14 @@ class MessageReceiver(Thread):
     """
     def __init__(self, queue):
         Thread.__init__(self)
-        self.ip = 'tcp://192.168.0.110:8765'
+        self.ip = 'tcp://localhost:8790'
+
         context = zmq.Context()
         self.socket = context.socket(zmq.SUB)
-        self.socket.connect(self.ip)
-        self.socket.subscribe('')
+        self.socket.setsockopt(zmq.SUBSCRIBE, b"")
+        self.connect(self.ip)
         self.queue = queue
-        
+
     def run(self):
         while True:
             try:
@@ -35,17 +36,8 @@ class MessageReceiver(Thread):
         received_data = self.socket.recv_json()
         self.queue.put(received_data)
 
-    def connect(self):
-        self.socket.connect(self.ip)
+    def connect(self,ip):
+        self.socket.connect(ip)
 
     def disconnect(self):
         self.socket.disconnect()
-
-
-
-
-
-
-
-
-

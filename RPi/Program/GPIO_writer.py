@@ -9,10 +9,10 @@ class GPIOWriter:
         self.pin_led_lights = 12
         self.pin_camera_tilt = 18
         self.camera_tilt_offset = 0
-        self.lights = pigpio.pi()
-        self.lights.set_mode(self.pin_led_lights, pigpio.OUTPUT)
-        self.camera_tilt = pigpio.pi()
-        self.camera_tilt.set_mode(self.pin_camera_tilt, pigpio.OUTPUT)
+        #self.lights =  pigpio.pi()
+        #self.lights.set_mode(self.pin_led_lights, pigpio.OUTPUT)
+        #self.camera_tilt = pigpio.pi()
+        #self.camera_tilt.set_mode(self.pin_camera_tilt, pigpio.OUTPUT)
         self.adjust_camera(0)
         self.pitch = 0
 
@@ -26,8 +26,8 @@ class GPIOWriter:
         in_min = 0
         in_max = 100
         PWM = self.__map(brightness, in_max, in_min, out_max, out_min)
-        print(PWM)
-        self.lights.set_PWM_dutycycle(self.pin_led_lights, 255)
+       # print(PWM)
+        # self.lights.set_PWM_dutycycle(self.pin_led_lights, 255)
         return True
 
     def adjust_camera(self, pitch):
@@ -42,9 +42,9 @@ class GPIOWriter:
         in_max = 45
         adjusted_pitch = self.pitch + self.camera_tilt_offset
         pwm = self.__map(adjusted_pitch, in_max, in_min, out_max, out_min)
-        self.camera_tilt.set_servo_pulsewidth(self.pin_camera_tilt, pwm)
-
-    #         print(self.camera_tilt.get_servo_pulsewidth(self.pin_camera_tilt),'dfs')
+        #self.camera_tilt.set_servo_pulsewidth(self.pin_camera_tilt, pwm)
+        
+#         print(self.camera_tilt.get_servo_pulsewidth(self.pin_camera_tilt),'dfs')
 
     def __map(self, in_value, in_max, in_min, out_max, out_min):
         """
