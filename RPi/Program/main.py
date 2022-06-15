@@ -25,7 +25,9 @@ thread_running_event = Event()
 alarm1 = Alarm('water_leakage', 'False')
 alarm2 = Alarm('no_legal_sp', 'False')
 alarm3 = Alarm('incline_too_steep', 'False')
-alarm_list.append(alarm1, alarm2, alarm3)
+alarm_list.append(alarm1)
+alarm_list.append(alarm2)
+alarm_list.append(alarm3)
 #Creating threads
 payload_handler = PayloadHandler(sensor_list, arduino_command_queue, gui_command_queue,
                                  seafloor_sonar_queue, new_set_point_event,
@@ -66,8 +68,10 @@ try:
 except (Exception) as e:
     print(e, 'main')
 
+
+print ('Press Ctrl+C to exit')
 try:
     while True:
-        sleep(10)
+        sleep(5)
 except KeyboardInterrupt:
     print("exit prg")

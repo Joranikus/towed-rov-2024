@@ -88,7 +88,8 @@ PID pid_depth = PID(&depth, &wing_angle, &set_point_depth, pid_depth_p, pid_dept
 PID pid_trim = PID(&roll, &trim_angle, &set_point_roll, pid_roll_p, pid_roll_i, pid_roll_i, DIRECT);
 
 void setup() {
-  Serial.begin(57600);
+  //Serial.begin(57600); unnecessary with teensy 4.0
+  
   while (!reset_ardu) {
     Serial.println("<StepperArduino:0>");
     String msg = Serial.readString();

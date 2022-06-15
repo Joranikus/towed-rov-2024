@@ -43,7 +43,7 @@ class SerialHandler(Thread):
         self.serial_message_received_handler.start()
         self.handle_writer_queue = HandleWriterQueue(self.reader_queue, self.writer_queue, self.writer_queue_IMU,
                                                      self.writer_queue_sensor_arduino, self.writer_queue_stepper_arduino,
-                                                     self.from_arduino_to_arduino_queue, set_point_queue, rov_depth_queue)
+                                                     self.from_arduino_to_arduino_queue, set_point_queue, rov_depth_queue, self.VALID_SENSOR_LIST)
     def run(self):
         while self.thread_running_event.is_set():
             if not self.com_port_found:
@@ -76,14 +76,16 @@ class SerialHandler(Thread):
                                                                      self.reader_queue, com_port, 57600))
                 self.writer_queue_IMU.put('IMU:OK')
                 self.serial_connected.append('IMU:'+ com_port)
+                
             if 'SensorArduino' in port_name:
                 self.serial_threads.append(self.__open_serial_thread(self.writer_queue_sensor_arduino,
                                                                      self.reader_queue, com_port, 115200))
                 self.writer_queue_sensor_arduino.put('sensor_arduino:OK')
                 self.serial_connected.append('SensorArduino:' + com_port)
+                
             if 'StepperArduino' in port_name:
                 self.serial_threads.append(self.__open_serial_thread(self.writer_queue_stepper_arduino,
-                                                                     self.reader_queue, com_port, 57600))
+                                                                     self.reader_queue, com_port, 115200))
                 self.writer_queue_stepper_arduino.put('stepper_arduino:OK')
                 self.serial_connected.append('StepperArduino:' + com_port)
         return True

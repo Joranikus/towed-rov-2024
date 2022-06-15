@@ -111,6 +111,7 @@ void initSensors()
   }
 }
 
+
 void set_init_values()
 {
   sensors_vec_t   orientation;
@@ -129,6 +130,8 @@ void set_init_values()
     yaw = orientation.heading;
   }
 }
+
+
 void calibrate_gyro() {
   int n_cycles = 200;
   double x_tot = 0;
@@ -149,6 +152,7 @@ void calibrate_gyro() {
   calibration_gyro_Y = -y_tot / n_cycles;
   calibration_gyro_Z = -z_tot / n_cycles;
 }
+
 
 void setup() {
   // Use 9600 bits per second to communicate with the Ping dev  ice
@@ -346,12 +350,13 @@ void loop() {
 
     }
 
-
     previousMillis = millis();
   }
 
 
 }
+
+
 void sensor_fusion(float dt) {
   dt = dt * 0.001;
   sensors_vec_t   orientation;
@@ -373,6 +378,8 @@ void sensor_fusion(float dt) {
 
   }
 }
+
+
 void updateImuData(unsigned long dt_imu) {
   dt_imu = dt_imu * 0.001;
   float pitch_acc = pitch;
@@ -404,14 +411,18 @@ void updateImuData(unsigned long dt_imu) {
   yaw = 0;
 }
 
+
 float complementary_filter(float alpha, float prev_angle, float gyro_value, float accel_value, float dt) {
   float filtered_value  = alpha * (prev_angle + gyro_value * dt) + (1 - alpha) * accel_value;
   return filtered_value;
 }
+
+
 float low_pass_filter(float alpha, float new_val, float prev_val) {
   float filtered_value  = alpha * new_val + (1 - alpha) * prev_val;
   return filtered_value;
 }
+
 
 float getVerticalAcceleration(float roll_angle, float pitch_angle, float accel_x, float accel_y, float accel_z) {
 
@@ -429,6 +440,7 @@ float getVerticalAcceleration(float roll_angle, float pitch_angle, float accel_x
   return -accel_vertical_y - accel_vertical_x + accel_vertical_z;
 }
 
+
 //separates string message
 String getValue(String data, char separator, int index) {
   int found = 0;
@@ -443,6 +455,7 @@ String getValue(String data, char separator, int index) {
   }
   return found > index ? data.substring(strIndex[0], strIndex[1]) : "";
 }
+
 
 //Translate incomming messages and check if a known message
 void translateString(String s) {
@@ -491,6 +504,7 @@ void translateString(String s) {
     responde("Software_uart:True");
   }
 }
+
 
 void responde(String response) {
   Serial.println("<" + response + ">");

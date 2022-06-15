@@ -13,35 +13,38 @@ class SerialFinder:
         self.seperation_char = ':'
         self.baud_rate = 0
 
+
     def find_com_ports(self):
         """
         Loop through all available com ports on rpi and multiple baud rates.
-        :return: dict with all found com ports
-        """
-        search_runs = 0
+        :return: dict with port name and corresponding device name
+        """ 
         port_names = self.get_available_com_ports()
-        print(port_names)
-        while search_runs != 2:
+        print('Available Ports: ', port_names)
+        
+        search_runs = 0
+        while search_runs != 3:
             if search_runs == 0:
-                self.baud_rate = 57600
+                self.baud_rate = 9600
             if search_runs == 1:
+                self.baud_rate = 57600
+            if search_runs == 2:
                 self.baud_rate = 115200
 
             for key in port_names:
-                # if 'dev' in key:
                 serial_port = serial.Serial(key, self.baud_rate, timeout=1,
                                             stopbits=1, bytesize=8)
-                serial_port.write("<reset:True>".encode('utf-8'))
-                print(key)
-                print(self.baud_rate)
+                
+                print(f'\nChecking {serial_port.name} at {self.baud_rate} Baud:') 
+                
                 try:
                     sleep(2)
                     if serial_port.in_waiting:
                         message_received = serial_port.readline()
+                        
                         if message_received:
-                            print(message_received,'stig')
                             message_received = message_received.strip().decode('utf-8').split(self.seperation_char)
-#                             print(message_received,'kato')
+
                             port_name = message_received[0].replace('<', '')
                             if 'IMU' in port_name and self.baud_rate == 57600:
                                 self.port_name_list[key] = 'IMU'
@@ -49,14 +52,15 @@ class SerialFinder:
 
                             elif 'SensorArduino' in port_name:
                                 self.port_name_list[key] = 'SensorArduino'
-                                print('Found SensorArduino')
-                                print(self.baud_rate)
+                                print(f'SensorArduino is connected to {serial_port.name} and works with {self.baud_rate} Baud')
 
                             elif 'StepperArduino' in port_name:
                                 self.port_name_list[key] = 'StepperArduino'
-                                print('Found StepperArduino')
+                                print(f'StepperArduino is connected to {serial_port.name} and works with {self.baud_rate} Baud')
+                        
                         serial_port.reset_input_buffer()
                         serial_port.close()
+                        
                 except (Exception) as e:
 
                     print(e, 'serial finder')
@@ -66,7 +70,7 @@ class SerialFinder:
                     except (Exception) as e:
                         print(e, 'serial finder')
             search_runs = search_runs + 1
-        print('done')
+        print('Device finder complete\n')
         return self.port_name_list
 
     def get_available_com_ports(self):
@@ -94,9 +98,3 @@ class SerialFinder:
             except (OSError, serial.SerialException):
                 pass
         return result
-
-
-
-
-
-

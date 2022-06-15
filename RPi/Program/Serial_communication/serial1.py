@@ -1,177 +1,136 @@
-"""
-Seafloor tracking class
-block of x sea floor measurements are sent to class
-measurements are sent to a cost function that finds a sp for a distance of 10 meters
-when a new set point is created, the set_point is sent to the optimal path algorithm, this algorithm returns index(0) as the new set_point
-"""
-import numpy as np
+import serial
+import queue
 from threading import Thread
-from time import sleep
+from time import time
+
+ENCODING = 'utf-8'
+TERMINATOR = ':'
+START_CHAR = '<'
+END_CHAR = '>'
+NEW_LINE = '\n'
+START = b'<'
+STOP = b'>'
 
 
-
-class SeafloorTracker(Thread):
-    def __init__(self, length_rope, desired_distance, min_dist, dist_to_skip,
-                 depth_of_rov, depth_beneath_boat, new_set_point_event, set_point_queue):
+class SerialWriterReader(Thread):
+    def __init__(self, output_queue, input_queue, com_port, baud_rate, from_arduino_to_arduino_queue):
         Thread.__init__(self)
-        self.length_rope = length_rope
-        self.desired_distance = desired_distance
-        self.min_dist = min_dist
-        if desired_distance - min_dist >= dist_to_skip:
-            self.dist_to_skip = dist_to_skip
-        else:
-            self.dist_to_skip = desired_distance - min_dist
-        self.set_points = np.zeros([round(length_rope / 10)])
-        self.depths_of_rov = depth_of_rov
-        self.depths_beneath_boat = depth_beneath_boat
-        self.new_set_point_event = new_set_point_event
-        self.set_point_queue = set_point_queue
-        self.array_count = 0
+        self.from_arduino_to_arduino_queue = from_arduino_to_arduino_queue
+        self.output_queue = output_queue
+        self.input_queue = input_queue
+        self.com_port = com_port
+        self.baud_rate = baud_rate
+        self.serial_port = serial.Serial(
+            port=self.com_port,
+            baudrate=self.baud_rate,
+            parity=serial.PARITY_NONE,
+            stopbits=serial.STOPBITS_ONE,
+            bytesize=serial.EIGHTBITS,
+            timeout=0)
+        self.stop = False
+        self.in_packet = bytearray()
+        self.packet = bytearray()
+        self.last_output = ''
+        self.FROM_ARDUINO_TO_ARDUINO = ['depth', 'roll', 'pitch']
+        self.counter = 0
 
     def run(self):
-        while True:
-            if self.new_set_point_event.is_set():
-                depths_beneath_rov = np.array(self.depths_beneath_boat.queue)
-                depths_of_rov = self.depths_of_rov
-                with self.depths_beneath_boat.mutex:
-                    self.depths_beneath_boat.queue.clear()
-                print("ok")
-                self.set_point_queue.put(self.get_set_point(depths_beneath_rov, depths_of_rov))
-                self.new_set_point_event.clear()
+        while not self.stop:
+            try:
+                test = self.output_queue.get(timeout=0.001)
 
-    def get_set_point(self, sonar_values, depth_rov):
-        """[Get a new set point based on the current set point and future depths]
-        Args:
-            sonar_values ([float]): [numpy 1D array with recorded sonar values]
-            depth_rov ([float]): [The last measured ROV depth]
-        Returns:
-            [float]: [The new depth set point for the ROV]
+                self.__write_serial_data(test)
+                #print("test",test)
+            except queue.Empty:
+                pass
+            except TypeError:
+                pass
+            incoming_message = self.__read_incoming_data()
+            for message in incoming_message:
+                if message:
+                    try:
+                        if not "Arduino" in message:
+                            try:
+                                self.input_queue.put_nowait(message)
+                                msg = message.split(TERMINATOR, 1)[0]
+                                if msg in self.FROM_ARDUINO_TO_ARDUINO:
+                                    try:
+                                        self.from_arduino_to_arduino_queue.put_nowait(message)
+                                    except queue.Full:
+                                        pass
+                            except queue.Full:
+                                pass
+                    except TypeError:
+                        pass
+
+    def __write_serial_data(self, message):
         """
-        current_set_point = self.set_points[0]
-        new_set_point, alarm = self.__cost_function(sonar_values)
-        self.set_points = np.delete(self.set_points, 0)
-        self.set_points = np.append(self.set_points, new_set_point)
-        if self.set_points_full:
-            self.set_points = self.__find_opt_sp(self.set_points, current_set_point, depth_rov, self.desired_distance,
-                                                 self.min_dist, self.dist_to_skip)
-        elif self.array_count >= len(self.set_points) - 1:
-            self.set_points_full = True
+        write message to serial port
+        :param message: message to send to serial
+        """
+        #print(self.serial_port.isOpen(),self.com_port)
+        if self.serial_port.isOpen():
+            output = START_CHAR + message + END_CHAR + NEW_LINE
+            if output != self.last_output:
+                try:
+                    output = output.encode(ENCODING)
+
+                    self.serial_port.write(output)
+                    #print(output, '    ', str(self.counter), '    ', self.baud_rate)
+                    self.counter = self.counter + 1
+                    self.last_output = output
+                except (Exception) as e:
+                    print(e, 'serial writer')
         else:
-            self.array_count = self.array_count + 1
-        return self.set_points[0]
+            self.serial_port.open()
+            print('Serial port not open : ' + str(self.com_port))
+            self.output_queue.append(message)
 
+    def handle_packet(self, data):
+        message_received = data.decode(ENCODING). \
+            replace(START_CHAR, ""). \
+            replace(END_CHAR, ""). \
+            replace(" ", "")
+        #print(message_received)
+        return message_received
 
-    def set_paramter_values(self, length_rope=None, desired_distance=None, min_dist=None, dist_to_skip=None):
-        """[summary]
-        Args:
-            length_rope ([int], optional): [The length of the towing cable]. Defaults to None.
-            desired_distance ([int], optional): [The ROVs desired distance from the seafloor]. Defaults to None.
-            min_dist ([int], optional): [The minimum distance the ROV can have to the seafloor]. Defaults to None.
-            dist_to_skip ([int], optional): [The distance the ROV can have to the new set point before changing]. Defaults to None.
+    def __read_incoming_data(self):
         """
-        if length_rope is not None and length_rope != self.length_rope:
-            new_size = round(length_rope / 10)
-            self.set_points = self.__change_matrix_size(self.set_points, len(self.set_points), new_size)
-        if desired_distance is not None:
-            self.desired_distance = desired_distance
-        if min_dist is not None and min_dist < self.desired_distance:
-            self.min_dist = min_dist
-        if dist_to_skip is not None:
-            self.dist_to_skip = dist_to_skip
-            if desired_distance - min_dist <= self.dist_to_skip:
-                self.dist_to_skip = dist_to_skip
-            else:
-                self.dist_to_skip = desired_distance - min_dist
-
-    def __cost_function(self, sonar_values):
-        """[Run the echo sounder data through a cost function to find the optimal distance]
-        Args:
-            sonar_values ([float np array 1D]): [The recorded sonar values]
-        Returns:
-            [float]: [The optimal distance from the seafloor]
+        reads from serial port
+        :return: message read from serial port
         """
+        data_received = []
+        message_received = ""
+        try:
+            data = self.serial_port.read(self.serial_port.in_waiting or 1)
+            for byte in serial.iterbytes(data):
+                if byte == START:
+                    self.in_packet = True
+                elif byte == STOP:
+                    self.in_packet = False
+                    data_received.append(self.handle_packet(bytes(self.packet)))  # make read-only copy
+                    del self.packet[:]
+                elif self.in_packet:
+                    self.packet.extend(byte)
+                else:
+                    pass
 
-        new_sp = 0
-        alarm_flag = False
-        max_set_point = round(min(sonar_values) - self.min_dist)
-        if max_set_point >= 0:
-            legal_set_points = np.arange(0, max_set_point, 0.5)
-            cost = np.zeros([len(legal_set_points)])
-            for index, set_point in enumerate(legal_set_points):
-                for sonar_value in sonar_values:
-                    cost[index] += abs(sonar_value - set_point - self.desired_distance)
-            min_cost = np.amin(cost)
-            min_cost_idx = np.array(np.argmax(cost == min_cost))
-            new_sp = legal_set_points[min_cost_idx]
-        else:
-            alarm_flag = True
-        return new_sp, alarm_flag
+        except (Exception) as e:
+            print(e, "serial1")
+        return data_received
 
-    def __find_opt_sp(self, set_points, current_sp, depth_rov, desired_distance, min_dist, dist_to_skip):
-        """[Evaluetes the set points array to find an optimal path]
-        Args:
-            set_points ([type]): [description]
-            current_sp ([type]): [description]
-            depth_rov ([type]): [description]
-        Returns:
-            [type]: [description]
-        """
-        set_points_mean = round(np.mean(set_points))
-
-        # If the ROV is on colision course every set point is set to a safe distance giving it time to go up
-        if current_sp - set_points[-1] > desired_distance - min_dist or depth_rov - set_points[
-            -1] > desired_distance - min_dist:
-            set_points_min = min(set_points)
-            set_points = np.empty(len(set_points))
-            set_points.fill(set_points_min)
-        elif current_sp - min(set_points) > desired_distance - min_dist or depth_rov - min(
-                set_points) > desired_distance - min_dist:
-            set_points[0] = min(set_points)
-        # Rov closer to mean than current sp
-        elif dist_to_skip > abs(depth_rov - set_points_mean) < abs(depth_rov - current_sp):
-            set_points[0] = set_points_mean
-        # if the distance between current sp and mean sp is greater than dist to ignore
-        elif abs(current_sp - set_points_mean) > dist_to_skip:
-
-            # if mean is less than current the ROV goes up
-            if set_points_mean < current_sp:
-                set_points[0] = set_points_mean
-                # if the mean value is greater than current set point, and it wont reduce the depth if it have to go back up.
-            elif set_points_mean - set_points[0] < desired_distance - min_dist and set_points_mean - min(
-                    set_points) < desired_distance - min_dist:
-                set_points[0] = set_points_mean
-            else:
-                set_points[0] = min(set_points)
-
-        else:
-            set_points[0] = current_sp
-        return set_points
-
-    def __change_matrix_size(self, matrix_to_change, size, new_size):
-        difference = new_size - size
-        if difference >= 1:
-            idx = np.full((1, difference), matrix_to_change[-1])
-            new_matrix = np.append(matrix_to_change, idx)
-        elif difference <= -1:
-            idx = np.arange(abs(difference))
-            new_matrix = np.delete(matrix_to_change, idx)
-        return new_matrix
+    def stop_thread(self):
+        self.stop = True
+        self.serial_port.close()
+        print('closed port', self.serial_port.isOpen())
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     q1 = queue.Queue()
     q2 = queue.Queue()
     q3 = queue.Queue()
-    q4 = Queue()
-    q1.put(15.01)
-    q1.put(15.1)
-    q1.put(15.2)
-
-    q2.put(30.01)
-    q2.put(30.9)
-    q2.put(30.8)
-    test = SeafloorTracker(300, 20, 9, 6, 10, q2, q3, q4)
-    test.start()
-
-    sleep(3)
-    q3.put(True)
+    ser = SerialWriterReader(q1, q2, '/dev/ttyUSB0', 115200, q3)
+    ser.daemon = True
+    ser.start()
+    while True:
+        pass
