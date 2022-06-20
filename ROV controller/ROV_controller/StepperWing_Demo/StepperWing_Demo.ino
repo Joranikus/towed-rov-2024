@@ -22,7 +22,7 @@ WingStepper stepper_port(STEP_PIN, DIR_PIN, SENSOR_PIN);
 #define CALIBRATING 0
 #define MOVING      1
 #define STANDBY     2
-int state = CALIBRATING;  //state at start. use STANDBY if you want to calibration
+int state = CALIBRATING;  //state at start. use STANDBY if you do not want to calibration
 
 float desired_angle = 0;
 

@@ -30,10 +30,12 @@ class WingStepper {
     int _sensor_top_pos = -1; // initial value out of range
     int _sensor_bottom_pos = 1; // same here
     long _sensor_count = 0; // measurs the sensor multiple
-#define MAX_COUNT 100000 // increase this if sensor gets activated without being near magnet
+    const int MAX_COUNT = 100000; // increase this if sensor gets activated without being near magnet
 
-    int angle_to_step_const = 55;         //step = angle * k, k = (1.8/99) = 55,  1.8 is degree/step, 99 is gear ratio
-    float step_to_angle_const = 1.0/angle_to_step_const;
+    // step = angle * k
+    float _angle_to_step_const = 99.05055907 / 1.80;     // gear ratio /(degree/step) = k = 55.0281
+    float _step_to_angle_const = 1.0 / _angle_to_step_const;
+
 
 
   public:
@@ -60,7 +62,18 @@ class WingStepper {
 
 
     float get_angle() {
-      return _stepper_pos * step_to_angle_const;
+      return _stepper_pos * _step_to_angle_const;
+    }
+
+
+    void set_angle_to_step_const (float K) {
+      _angle_to_step_const = K;
+      _step_to_angle_const = 1 / K;
+    }
+
+
+    float get_angle_to_step_const() {
+      return _angle_to_step_const;
     }
 
 
@@ -71,24 +84,14 @@ class WingStepper {
 
 
     // set new delay between steps
-    void set_step_delay_us(int us){
+    void set_step_delay_us(int us) {
       _step_delay_us = us;
-    }
-
-
-    void set_angle_to_step_const (int K) {
-      angle_to_step_const = K;
-    }
-
-
-    void set_step_to_angle_const (int K) {
-      step_to_angle_const = K;
     }
 
 
     // set a offset angle if caliblation is off center
     void set_offset_angle(float offset_angle) {
-      int offset_pos = offset_angle * angle_to_step_const; // convert from angle to step
+      int offset_pos = offset_angle * _angle_to_step_const; // convert from angle to step
 
       if (_offset_pos == 0) {
         _offset_pos = offset_pos;
@@ -103,7 +106,12 @@ class WingStepper {
     //  every other time it is run
     // @return true when finished
     bool rotate_step(int desired_pos) {
-
+      
+      // return if position is already correct
+      if (_stepper_pos == desired_pos) {
+        return true;
+      }
+      
       // chooses correct direction
       bool dir = _ref_direction;
       if (_stepper_pos > desired_pos) {
@@ -126,7 +134,7 @@ class WingStepper {
 
         //updates position after new step
         if (_step_state) {
-          if (_stepper_pos < desired_pos) {
+          if (dir == _ref_direction) {
             _stepper_pos ++;
           }
           else {
@@ -135,6 +143,7 @@ class WingStepper {
         }
       }
 
+      //return true if position is correct
       if (_stepper_pos == desired_pos) {
         return true;
       }
@@ -148,7 +157,8 @@ class WingStepper {
     //  every other time it is run
     // @return true when finished
     bool rotate (float desired_angle) {
-      return rotate_step(desired_angle * angle_to_step_const);
+      int desired_pos = desired_angle * _angle_to_step_const;
+      return rotate_step(desired_pos);
     }
 
 
@@ -165,7 +175,7 @@ class WingStepper {
           finished = true;
         }
         if (digitalRead(_sensor_pin)) {
-          //sensor must be read many times to increase data confidence 
+          //sensor must be read many times to increase data confidence
           _sensor_count ++;
           if (_sensor_count > MAX_COUNT) {
             _sensor_top_pos = _stepper_pos;  // capture position of magnet
@@ -177,16 +187,15 @@ class WingStepper {
       // rotate down to other sensor
       else if (_sensor_bottom_pos == 1) {
         rotate(-360);
-        
+
         if (digitalRead(_sensor_pin)) {
-          //sensor must be read many times to increase data confidence 
+          //sensor must be read many times to increase data confidence
           _sensor_count ++;
           if (_sensor_count > MAX_COUNT) {
             _sensor_count = 0;
 
             // only add new sensor if stepper has moved more than 25 deg
-            float sensor_top_angle = _sensor_top_pos * step_to_angle_const;
-
+            float sensor_top_angle = _sensor_top_pos * _step_to_angle_const;
             if (sensor_top_angle - get_angle() > 25) {
               _sensor_bottom_pos = _stepper_pos;
             }
@@ -196,7 +205,7 @@ class WingStepper {
 
       //calculate new stepper pos
       else {
-        float gap_angle = (_sensor_top_pos - _sensor_bottom_pos) * step_to_angle_const;
+        float gap_angle = (_sensor_top_pos - _sensor_bottom_pos) * _step_to_angle_const;
         Serial.print("gap_ angle: "); Serial.println(gap_angle);
         if (gap_angle < 180) {
           _stepper_pos = (_sensor_bottom_pos - _sensor_top_pos) / 2;
@@ -204,7 +213,7 @@ class WingStepper {
         // stepper is on wrong side of sensor
         else {
           float real_gap = 360 - gap_angle;
-          _stepper_pos = (real_gap * angle_to_step_const) / 2;
+          _stepper_pos = (real_gap * _angle_to_step_const) / 2;
         }
         finished = true;
       }

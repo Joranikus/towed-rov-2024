@@ -1,55 +1,53 @@
 /**
   This programs control the wing angles, by calculating a desired angle with PID controllers, and sets the motors position.
    Author: Slepe-ROV 2021
+   Edit by: TowedROV 2022
 */
 
-/**
-  Sjekk maks og min stepper pos etter reset
-  Sjekk reset pos
-
-*/
-bool test_from_terminal = false;
 #include <PID_v1.h>
 #include <SoftwareSerial.h>
+#include  "WingStepper.h"
+
+//Pins connected to the Teensy
+const int DIR_PIN_SB    = 2;
+const int STEP_PIN_SB   = 3;
+const int SENSOR_PIN_SB = 4;
+
+const int DIR_PIN_PORT    = 5;
+const int STEP_PIN_PORT   = 6;
+const int SENSOR_PIN_PORT = 7;
+
+// class for stepper
+WingStepper stepper_sb(STEP_PIN_SB, DIR_PIN_SB, SENSOR_PIN_SB);
+WingStepper stepper_port(STEP_PIN_PORT, DIR_PIN_PORT, SENSOR_PIN_PORT);
+
+// calibration status
+bool cal_status_sb = false;
+bool cal_status_port = false;
+
 char charIn = ' ';
 char lastCharIn;
-//Defining pins connected to the arduino
-const int direction_pin_sb = 2;
-const int step_pin_sb = 3;
-const int sensor_sb = 4;
-
-const int direction_pin_port = 5;
-const int step_pin_port = 6;
-const int sensor_port = 7;
-
-//Stepper positions
-int current_pos_sb, current_pos_port;
-int step_delay = 1;
-byte stepper_pulse_port = HIGH;
-byte stepper_pulse_sb = HIGH;
 
 //Wing positions
-double wing_angle_sb;
-double wing_angle_port;
+double wing_angle_sb = 0;
+double wing_angle_port = 0;
 
 //Feedback GUI
 String data_string;
 
 //Switch case modes
-const int MANUAL_MODE = 1;
-const int AUTO_DEPTH_MODE = 0;
-int target_mode = MANUAL_MODE;
+const int CALIBRATE_STATE = 0;
+const int MANUAL_STATE = 1;
+const int AUTO_DEPTH_STATE = 2;
+int state = MANUAL_STATE;
 
 //Flag
-boolean has_been_reset = false;
 boolean testing = false;
 bool boolWingPos;
 
 // LIMITS
-int angle_to_step_const = 55;         //step = angle * k, k = (1.8/99) = 55,  1.8 is degree/step, 99 is gear ratio
-float step_to_angle_const = 0.01818;  //angle = step * k, k = (99/1.8) = 0.01818     //note: not in use
-int max_wing_angle = 25;
-int max_stepper_pos = max_wing_angle * angle_to_step_const;
+int max_wing_angle = 360;
+int max_stepper_pos = max_wing_angle * stepper_sb.get_angle_to_step_const();
 int min_stepper_pos = -max_stepper_pos;
 
 double max_pid_output = 15;
@@ -76,168 +74,23 @@ double pid_roll_p = 0, pid_roll_i = 0, pid_roll_d = 0;
 
 //Timer
 unsigned long time_intervall = 50;
-unsigned long last_step_port = 0;
-unsigned long last_step_sb = 0;
 unsigned long last_update_wing_pos = 0;
-
-//Reset at start
-bool reset_ardu = false;
 
 // PID controllers
 PID pid_depth = PID(&depth, &wing_angle, &set_point_depth, pid_depth_p, pid_depth_i, pid_depth_d, REVERSE);
 PID pid_trim = PID(&roll, &trim_angle, &set_point_roll, pid_roll_p, pid_roll_i, pid_roll_i, DIRECT);
 
-void setup() {
-  //Serial.begin(57600); unnecessary with teensy 4.0
-  
-  while (!reset_ardu) {
-    Serial.println("<StepperArduino:0>");
-    String msg = Serial.readString();
-    String part01 = getValue(msg, ':', 0);
 
-    part01.replace("<", "");
-    if (part01 == "start") {
-      reset_ardu = true;
-    }
+// moves both stepper towards target angle
+void step_both() {
+  // step if stepper is at wrong angle
+  if (wing_angle_sb != stepper_sb.get_angle()) {
+    stepper_sb.rotate(wing_angle_sb);
   }
-  //turn the PIDs on and set min/max output
-  pid_depth.SetOutputLimits(-max_pid_output, max_pid_output);
-  pid_trim.SetOutputLimits(-max_trim, max_trim);
-  pinMode(direction_pin_port, OUTPUT);
-  pinMode(step_pin_port, OUTPUT);
-  pinMode(sensor_port, INPUT);
-  pinMode(direction_pin_sb, OUTPUT);
-  pinMode(step_pin_sb, OUTPUT);
-  pinMode(sensor_sb, INPUT);
-  pid_depth.SetMode(MANUAL);
-  pid_trim.SetMode(MANUAL);
-  data_string.reserve(200);
-  while (!Serial) {
-    //wait to connect
-  }
-  Serial.setTimeout(0);
-}
-
-
-void loop() {
-
-  if (has_been_reset) {
-    unsigned long update_wing_pos = millis() - last_update_wing_pos;
-    switch (target_mode) {
-
-      case MANUAL_MODE:
-        wing_angle_sb = constrain(manual_wing_pos, -max_wing_angle, max_wing_angle);
-        wing_angle_port = constrain(manual_wing_pos, -max_wing_angle, max_wing_angle);
-        break;
-
-      case AUTO_DEPTH_MODE:
-
-        pid_depth.Compute();
-        Serial.print("wing angle: ");
-        Serial.println(wing_angle);
-        pid_trim.Compute();
-        if (trim_angle != 0) {
-          trimWingPos();
-        } else {
-          wing_angle_sb = wing_angle;
-          wing_angle_port = wing_angle;
-        }
-        break;
-    }
-    compensateWingToPitch();
-
-    int step_position_sb = wing_angle_sb * angle_to_step_const;
-    int step_position_port = wing_angle_port * angle_to_step_const;
-
-    if (step_position_sb != current_pos_sb) {
-      moveStepperSb(step_position_sb);
-    }
-    if (step_position_port != current_pos_port) {
-      moveStepperPort(step_position_port);
-    }
-
-
-    if (update_wing_pos > time_intervall)
-    {
-      updateWingPosGUI(current_pos_sb, current_pos_port);
-      last_update_wing_pos = millis();
-    }
-  }
-
-  char c = ' ';
-
-  if (Serial.available()) {
-    c = Serial.read();
-  }
-
-  if (c == '>') {
-    data_string.trim();
-    translateString(data_string);
-    data_string = "";
-
-  } else if (c != ' ' && c != '\n' && c != '<') {
-    data_string +=  c;
-  }
-
-}
-
-
-/**
-   Moves the stepper motor on starboard side on step towards the desired position
-
-   @param The desired stepper position.
-*/
-void moveStepperSb(int desired_pos) {
-  long dt = millis() - last_step_sb;
-  if (dt > step_delay) {
-    if (desired_pos > current_pos_sb && desired_pos <= max_stepper_pos) {
-      digitalWrite(direction_pin_sb, LOW);
-      digitalWrite(step_pin_sb, stepper_pulse_sb);
-      last_step_sb = millis();
-      if (stepper_pulse_sb == LOW) {
-        current_pos_sb ++;
-      }
-    }
-    else if (desired_pos < current_pos_sb && !digitalRead(sensor_sb)) {
-      digitalWrite(direction_pin_sb, HIGH);
-      digitalWrite(step_pin_sb, stepper_pulse_sb);
-      last_step_sb = millis();
-      if (stepper_pulse_sb == LOW) {
-        current_pos_sb --;
-      }
-    }
-    stepper_pulse_sb = !stepper_pulse_sb;
+  if (wing_angle_port != stepper_port.get_angle()) {
+    stepper_port.rotate(wing_angle_port);
   }
 }
-
-
-/**
-   Moves the stepper motor on port side on step towards the desired position, alternating between high and low pulses.
-
-   @param The desired stepper position.
-*/
-void moveStepperPort(int desired_pos) {
-  long dt = millis() - last_step_port;
-  if (dt > step_delay) {
-    if (desired_pos > current_pos_port && desired_pos <= max_stepper_pos) {
-      digitalWrite(direction_pin_port, LOW);
-      digitalWrite(step_pin_port, stepper_pulse_port);
-      if (stepper_pulse_port == LOW) {
-        current_pos_port ++;
-      }
-    }
-    else if (desired_pos < current_pos_port && !digitalRead(sensor_port)) {
-      digitalWrite(direction_pin_port, HIGH);
-      digitalWrite(step_pin_port, stepper_pulse_port);
-      if (stepper_pulse_port == LOW) {
-        current_pos_port --;
-      }
-    }
-    last_step_port = millis();
-    stepper_pulse_port = !stepper_pulse_port;
-  }
-}
-
 
 /**
   Set a new target mode
@@ -245,16 +98,16 @@ void moveStepperPort(int desired_pos) {
 */
 bool setTargetMode(int newTargetMode, int wing_pos = 0) {
   bool mode_set = false;
-  if (newTargetMode == MANUAL_MODE) {
+  if (newTargetMode == MANUAL_STATE) {
     pid_depth.SetMode(MANUAL);
     pid_trim.SetMode(MANUAL);
-    target_mode = MANUAL_MODE;
+    state = MANUAL_STATE;
     manual_wing_pos = wing_pos;
     mode_set = true;
   }
 
-  else if (newTargetMode == AUTO_DEPTH_MODE) {
-    target_mode = AUTO_DEPTH_MODE;
+  else if (newTargetMode == AUTO_DEPTH_STATE) {
+    state = AUTO_DEPTH_STATE;
     set_point_depth = depth;
     pid_depth.SetMode(AUTOMATIC);
     pid_trim.SetMode(AUTOMATIC);
@@ -333,24 +186,22 @@ void set_pitch_compensation() {
 
 /**
   Updates the GUI with the actual wing positions.
+  TODO change to new class
 */
 void updateWingPosGUI(double pos_sb, double pos_port) {
-  if (boolWingPos) {
 
-    double current_angle_port = mapf(pos_port, min_stepper_pos, max_stepper_pos, -max_wing_angle, max_wing_angle);
-    String dataToSend = "<wing_pos_port:";
-    dataToSend.concat(current_angle_port + pitch);
-    dataToSend.concat(">");
-    Serial.println(dataToSend);
-  } else {
+  //print angle for port stepper
+  String dataToSend = "<wing_pos_port:";
+  dataToSend.concat(stepper_port.get_angle() + pitch); //TODO why send pitch here?
+  dataToSend.concat(">");
+  Serial.println(dataToSend);
 
-    double current_angle_sb = mapf(pos_sb, min_stepper_pos, max_stepper_pos, -max_wing_angle, max_wing_angle);
-    String dataToSend = "<wing_pos_sb:";
-    dataToSend.concat(current_angle_sb + pitch);
-    dataToSend.concat(">");
-    Serial.println(dataToSend);
-  }
-  boolWingPos = !boolWingPos;
+  //print angle for starbord stepper
+  dataToSend = "<wing_pos_sb:";
+  dataToSend.concat(stepper_sb.get_angle() + pitch);
+  dataToSend.concat(">");
+  Serial.println(dataToSend);
+
 }
 
 
@@ -365,20 +216,17 @@ void translateString(String s) {
   double double_part02 = part02.toFloat();
 
   if (part01.equals("reset")) {
-    if (test_from_terminal) {
-      has_been_reset = true;
-    } else {
-      resetStepper();
-    }
-    Serial.println("<reset:True>");
+    state = CALIBRATE_STATE;
+    cal_status_sb = false;
+    cal_status_port = false;
   }
 
   else if (part01.equals("auto_mode")) {
     if (part02.equals("True")) {
-      setTargetMode(AUTO_DEPTH_MODE);
+      setTargetMode(AUTO_DEPTH_STATE);
       Serial.println("<auto_mode:True>");
     } else if (part02.equals("False")) {
-      setTargetMode(MANUAL_MODE);
+      setTargetMode(MANUAL_STATE);
       Serial.println("<auto_mode:True>");
       manual_wing_pos = (int) wing_angle_sb;
     } else {
@@ -397,13 +245,12 @@ void translateString(String s) {
 
   //SENSORS
   else if (part01.equals("emergency_surface")) {
-    setTargetMode(MANUAL_MODE, max_wing_angle);
-    target_mode = MANUAL_MODE;
+    setTargetMode(MANUAL_STATE, max_wing_angle);
+    state = MANUAL_STATE;
     Serial.println("<emergency_surface:True>");
   }
 
   else if (part01.equals("depth")) {
-  println("depth of stystem",part02, part02.toInt)
     depth = part02.toInt();
   }
 
@@ -507,50 +354,118 @@ String getValue(String data, char separator, int index)
 }
 
 
-/**
-   Resets the steppers by stepping them back to the endposition, then setting the positions as
-   negative before the desired position is set to zero. the negative values must be calibrated when changing gears.
-   Notice that there might be a difference for each side, so calibrating should be done one motor at the time.
-*/
-void resetStepper() {
+//*** SETUP ****************************************************************
+void setup() {
+  //Serial.begin(57600); not necessary with Teensy
 
-  while (!digitalRead(sensor_port) && !digitalRead(sensor_sb)) {
-    digitalWrite(direction_pin_port, HIGH);
-    digitalWrite(direction_pin_sb, HIGH);
-    digitalWrite(step_pin_port, HIGH);
-    digitalWrite(step_pin_sb, HIGH);
-    delay(step_delay);
-    digitalWrite(step_pin_port, LOW);
-    digitalWrite(step_pin_sb, LOW);
-    delay(step_delay);
+  //Reset at start
+  bool reset_ardu = false;
+  while (!reset_ardu) {
+    Serial.println("<StepperArduino:0>");
+    String msg = Serial.readString();
+    String part01 = getValue(msg, ':', 0);
 
+    part01.replace("<", "");
+    if (part01 == "start") {
+      reset_ardu = true;
+    }
+    delay(1);
   }
-  while (!digitalRead(sensor_sb)) {
-
-    digitalWrite(direction_pin_sb, HIGH);
-    delay(step_delay);
-    digitalWrite(step_pin_sb, HIGH);
-    delay(step_delay);
-    digitalWrite(step_pin_sb, LOW);
-
+  //turn the PIDs on and set min/max output
+  pid_depth.SetOutputLimits(-max_pid_output, max_pid_output);
+  pid_trim.SetOutputLimits(-max_trim, max_trim);
+  pinMode(DIR_PIN_PORT, OUTPUT);
+  pinMode(STEP_PIN_PORT, OUTPUT);
+  pinMode(SENSOR_PIN_PORT, INPUT);
+  pinMode(DIR_PIN_SB, OUTPUT);
+  pinMode(STEP_PIN_SB, OUTPUT);
+  pinMode(SENSOR_PIN_SB, INPUT);
+  pid_depth.SetMode(MANUAL);
+  pid_trim.SetMode(MANUAL);
+  data_string.reserve(200);
+  while (!Serial) {
+    //wait to connect
   }
-  while (!digitalRead(sensor_port)) {
-    digitalWrite(direction_pin_port, HIGH);
-    delay(step_delay);
-    digitalWrite(step_pin_port, HIGH);
-    delay(step_delay);
-    digitalWrite(step_pin_port, LOW);
-  }
-  //these must be calibrated after adjustments in the transmission system.
-  current_pos_sb = min_stepper_pos;
-  current_pos_port = min_stepper_pos;
-  int wantedPos = 0;
-
-  while (current_pos_sb != wantedPos || current_pos_sb != wantedPos) {
-    moveStepperPort(wantedPos);
-    moveStepperSb(wantedPos);
-  }
-
-  setTargetMode(MANUAL_MODE);
-  has_been_reset = true;
+  Serial.setTimeout(0);
 }
+
+
+//*** LOOP ******************************************************************
+void loop() {
+
+  switch (state) {
+
+    case CALIBRATE_STATE: {
+
+        // continue calibration until finished
+        if (!cal_status_sb) {
+          cal_status_sb = stepper_sb.calibrate();
+        }
+        if (!cal_status_port) {
+          cal_status_port = stepper_port.calibrate();
+        }
+
+        // continue when stepper is finished calibrated
+        if (cal_status_sb && cal_status_port) {
+          setTargetMode(MANUAL_STATE);
+          Serial.println("<reset:True>");
+        }
+
+        // write something to serial, and the program will stop TODO remove
+        while (Serial.available());
+
+      }
+      break;
+
+    case MANUAL_STATE: {
+        wing_angle_sb = manual_wing_pos;
+        wing_angle_port = manual_wing_pos;
+        step_both();
+      }
+      break;
+
+    case AUTO_DEPTH_STATE: {
+
+        pid_depth.Compute();
+        Serial.print("wing angle: ");
+        Serial.println(wing_angle);
+        pid_trim.Compute();
+        if (trim_angle != 0) {
+          trimWingPos();
+        } else {
+          wing_angle_sb = wing_angle;
+          wing_angle_port = wing_angle;
+        }
+        step_both();
+      }
+      break;
+  }
+
+  compensateWingToPitch();
+
+  // for sending wing position to RPi
+  unsigned long update_wing_pos = millis() - last_update_wing_pos;
+  if (update_wing_pos > time_intervall) {
+    //updateWingPosGUI(stepper_sb.get_angle(), stepper_port.get_angle());
+    last_update_wing_pos = millis();
+
+    //Serial.print("wing_angle_sb: "); Serial.println(wing_angle_sb);
+    //Serial.print("stepper_sb.get_angle(): "); Serial.println(stepper_sb.get_angle());
+  }
+
+  char c = ' ';
+
+  if (Serial.available()) {
+    c = Serial.read();
+  }
+
+  if (c == '>') {
+    data_string.trim();
+    translateString(data_string);
+    data_string = "";
+  }
+  else if (c != ' ' && c != '\n' && c != '<') {
+    data_string +=  c;
+  }
+}
+//557
