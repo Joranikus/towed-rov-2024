@@ -7,7 +7,6 @@
 #include <Adafruit_Sensor.h>
 #include <Adafruit_9DOF.h>
 
-
 Adafruit_FXOS8700 accelmag = Adafruit_FXOS8700(0x8700A, 0x8700B);
 Adafruit_FXAS21002C gyro = Adafruit_FXAS21002C(0x0021002C);
 Adafruit_9DOF                dof   = Adafruit_9DOF();
@@ -18,13 +17,15 @@ static const uint8_t arduinoTxPin = 8; //Serial1 tx
 static Ping1D ping { Serial2 };
 SoftwareSerial software_serial { 20, 21 };
 
-const int UPDATE_DEPTH = 0;
-const int UPDATE_PING = 1;
-const int UPDATE_PITCH = 2;
-const int UPDATE_ROLL = 3;
+const int UPDATE_DEPTH        = 0;
+const int UPDATE_PING         = 1;
+const int UPDATE_PITCH        = 2;
+const int UPDATE_ROLL         = 3;
 const int UPDATE_ACCELERATION = 4;
-const int UPDATE_YAW = 5;
-const int UPDATE_TEMP = 6;
+const int UPDATE_YAW          = 5;
+const int UPDATE_TEMP         = 6;
+const int UPDATE_PRESSURE     = 7;
+int state = UPDATE_DEPTH;
 
 float depth = 0.00;
 float pressure = 0.00;
@@ -51,10 +52,6 @@ String software_uart = "";
 String i2c_variable = "";
 MS5837 sensor;
 
-int turnToSend = UPDATE_DEPTH;
-
-boolean tempPress = false;
-
 //charaters to define type of varible sent
 char * a = "<depth:";
 char * b = "<pressure:";
@@ -62,14 +59,12 @@ char * c = "<temperature:";
 char* n = "<depth_beneath_rov:";
 char* k = ">";
 const long imu_intervall = 10;
-const long transmit_interval = 20;
+const long transmit_interval = 500;    //was 20. edit for debug
 unsigned long previousMillis = 0;
 
 unsigned long previous_imu_update = 0;
 String inputString = "";
 bool stringComplete = false;
-
-bool reset_ardu = false;
 
 const float ALPHA_COMP_FILTER = 0.94;
 const float ALPHA_LP_FILTER = 0.05;
@@ -77,23 +72,21 @@ float calibration_gyro_X = -0.49656;
 float calibration_gyro_Y = 0.01109;
 float calibration_gyro_Z = -1.17348;
 
-
 float roll_to_send = 0;
 float pitch_to_send = 0;
 
 float pitch = 0.00;
 float roll = 0.00;
-float yaw = 0;
+float yaw = 0.00;
 
 float accel_x = 0;
 float accel_y = 0;
 float accel_z = 0;
 float vertical_accel = 0;
 
-
-
-
 int count = 0;
+
+
 void initSensors()
 {
   if (!accelmag.begin(ACCEL_RANGE_4G))
@@ -126,7 +119,6 @@ void set_init_values()
   }
   if (dof.magGetOrientation(SENSOR_AXIS_Z, &mag_event, &orientation))
   {
-
     yaw = orientation.heading;
   }
 }
@@ -145,7 +137,6 @@ void calibrate_gyro() {
     y_tot += gyro_event.gyro.y * 180 / PI;
     z_tot += gyro_event.gyro.z * 180 / PI;
 
-
     delay(10);
   }
   calibration_gyro_X = -x_tot / n_cycles;
@@ -159,18 +150,22 @@ void setup() {
   Serial2.begin(9600);
 
   // Use built in Serial port to communicate with the Arduino IDE Serial Monitor
-  Serial.begin(57600);
+  //Serial.begin(57600); unnecessary with teensy
+
+  // wait for start command from serial
+  bool reset_ardu = false;
   while (!reset_ardu) {
-  Serial.println("<SensorArduino:0>");
+    Serial.println("<SensorArduino:0>");
     String msg = Serial.readString();
     String part01 = getValue(msg, ':', 0);
 
-    part01.replace("<","");
-if (part01 == "start"){
+    part01.replace("<", "");
+    if (part01 == "start") {
       reset_ardu = true;
     }
   }
-  Serial.println("<SensorArduino:0>");  pinMode(LED_BUILTIN, OUTPUT);
+
+  pinMode(LED_BUILTIN, OUTPUT);
   pinMode(D2, OUTPUT);
   pinMode(D3, OUTPUT);
   pinMode(D4, OUTPUT);
@@ -178,9 +173,9 @@ if (part01 == "start"){
   //  software_serial.begin(4800);
   // wait until communication with the Ping device is established
   // and the Ping device is successfully initialized
-//  while (!ping.initialize()) {
-//    Serial.println(F("echosounder did not initialize"));
-//  }
+  //  while (!ping.initialize()) {
+  //    Serial.println(F("echosounder did not initialize"));
+  //  }
   Wire.begin();
   Wire.setClock(10000);
   while (!sensor.init()) {
@@ -196,14 +191,12 @@ if (part01 == "start"){
   while (!Serial) {
     //wait to connect
   }
-
-  delay(2000);
-
 }
+
 
 void loop() {
   // Checks if data is received from serial
-  while (Serial.available()) {
+  while (Serial.available() > 0) {
     // get the new byte:
     char inChar = (char)Serial.read();
     // add it to the inputString:
@@ -222,138 +215,139 @@ void loop() {
 
   //read sensor data and sends as char array one at a time
   float dt_imu = millis() - previous_imu_update;
-  if (dt_imu >= imu_intervall)
+  if (dt_imu >= imu_intervall) {
     sensor_fusion(dt_imu);
-  previous_imu_update = millis();
+    previous_imu_update = millis();
+  }
 
-  unsigned long currentMillis = millis();
-  unsigned long dt = currentMillis - previousMillis ;
+  unsigned long dt = millis() - previousMillis;
   if (dt > transmit_interval) {
-
-
+    previousMillis = millis();
 
     // reads sensor data
-    // pullup on leakage detector. Normally high
+    sensor.read();
+    temp1 = sensor.temperature();
+    depth = sensor.depth() + depth_rov_offset;
+    pressure = sensor.pressure();
 
+    // pullup on leakage detector. Normally HIGH //TODO: dobbel check, seems wrong
     if (digitalRead(LEAKAGE_DETECTOR) == HIGH) {
       Serial.print(F("<water_leakage: "));
       Serial.print("True");
       Serial.println(F(">"));
     }
-    else if (turnToSend == UPDATE_DEPTH)
-    {
-      char str_depth[6]; // Depth
-      for (int i = 0; i < 6; i++) {
-        dtostrf(depth, 5, 2, str_depth);
-      }
-      char string_to_rpi[32] = "";
-      strcat(string_to_rpi, a);
-      strcat(string_to_rpi, str_depth);
-      strcat(string_to_rpi, k);
-      Serial.println(string_to_rpi);
-      turnToSend = UPDATE_PING;
-      previousMillis = currentMillis;
-      while (!ping.update()) {
-        Serial.println(F("Ping device update failed"));
-      }
-      byte ping_confidence = ping.confidence();
-      if (ping.confidence() > 85) {
-        depthSeafloor = (ping.distance() / float(1000)) + depth_beneath_rov_offset  ;
-      } else {
-        depthSeafloor = -1;
-      }
 
-    }
-    else if (turnToSend == UPDATE_PING)
-    {
-      char str_depthSeafloor[8]; // Depth
-      for (int i = 0; i < 8; i++) {
-        dtostrf(depthSeafloor, 2, 2, str_depthSeafloor);
-      }
-      char string_to_rpi2[32] = "";
-      strcat(string_to_rpi2, n);
-      strcat(string_to_rpi2, str_depthSeafloor);
-      strcat(string_to_rpi2, k);
-      Serial.println(string_to_rpi2);
-      turnToSend = UPDATE_PITCH;
-      previousMillis = currentMillis;
+    // change which data to send
+    switch (state) {
+      case UPDATE_DEPTH:
+        {
+          char str_depth[6]; // Depth
+          for (int i = 0; i < 6; i++) {
+            dtostrf(depth, 5, 2, str_depth);
+          }
+          char string_to_rpi[32] = "";
+          strcat(string_to_rpi, a);
+          strcat(string_to_rpi, str_depth);
+          strcat(string_to_rpi, k);
+          Serial.println(string_to_rpi);
 
-    }
-    else if (turnToSend == UPDATE_PITCH)
-    {
-      Serial.print(F("<pitch: "));
-      Serial.print(pitch);
-      Serial.println(F(">"));
-      turnToSend = UPDATE_ROLL;
-      previousMillis = currentMillis;
-    }
-    else if (turnToSend == UPDATE_ROLL)
-    {
-      Serial.print(F("<roll: "));
-      Serial.print(roll);
-      Serial.println(F(">"));
-      turnToSend = UPDATE_DEPTH;
-      previousMillis = currentMillis;
-      // vertical_accel = getVerticalAcceleration(-pitch, roll, accel_x, accel_y, accel_z);
-    }
-    else if (turnToSend == UPDATE_ACCELERATION)
-    {
-      Serial.print(F("<vertical_acceleration: "));
-      Serial.print(vertical_accel);
-      Serial.println(F(">"));
-      turnToSend = UPDATE_YAW;
-      previousMillis = currentMillis;
-      sensor.read();
-      temp1 = sensor.temperature();
-      depth = sensor.depth() + depth_rov_offset;
-      pressure = sensor.pressure();
+          while (!ping.update()) {
+            Serial.println(F("Ping device update failed"));
+          }
+          byte ping_confidence = ping.confidence();
+          if (ping.confidence() > 85) {
+            depthSeafloor = (ping.distance() / float(1000)) + depth_beneath_rov_offset  ;
+          } else {
+            depthSeafloor = -1;
+          }
 
-
-    }
-    else if (turnToSend == UPDATE_YAW)
-    {
-      Serial.print(F("<yaw: "));
-      Serial.print((yaw));
-      Serial.println(F(">"));
-      turnToSend = UPDATE_TEMP;
-      previousMillis = currentMillis;
-
-    }
-    else if (turnToSend == UPDATE_TEMP)
-    {
-      //Changes between sending temperatur and pressure(since it is only used for visualisation in the GUI)
-      if (tempPress) {
-        char str_pressure[6]; // Depth
-        for (int i = 0; i < 6; i++) {
-          dtostrf(pressure, 4, 2, str_pressure);
+          state = UPDATE_PING;
         }
-        char string_to_rpi3[32] = "";
-        strcat(string_to_rpi3, b);
-        strcat(string_to_rpi3, str_pressure);
-        strcat(string_to_rpi3, k);
-        Serial.println(string_to_rpi3);
-        tempPress = false;
-      } else {
-        char str_temp[4]; // Depth
-        for (int i = 0; i < 4; i++) {
-          dtostrf(temp1, 1, 1, str_temp);
+        break;
+
+      case UPDATE_PING:
+        {
+          char str_depthSeafloor[8]; // Depth
+          for (int i = 0; i < 8; i++) {
+            dtostrf(depthSeafloor, 2, 2, str_depthSeafloor);
+          }
+          char string_to_rpi2[32] = "";
+          strcat(string_to_rpi2, n);
+          strcat(string_to_rpi2, str_depthSeafloor);
+          strcat(string_to_rpi2, k);
+          Serial.println(string_to_rpi2);
+          state = UPDATE_PITCH;
         }
-        char string_to_rpi4[32] = "";
-        strcat(string_to_rpi4, c);
-        strcat(string_to_rpi4, str_temp);
-        strcat(string_to_rpi4, k);
-        Serial.println(string_to_rpi4);
-        tempPress = true;
-      }
-      previousMillis = currentMillis;
-      turnToSend = UPDATE_DEPTH;
+        break;
 
+      case UPDATE_PITCH:
+        {
+          Serial.print(F("<pitch: "));
+          Serial.print(pitch);
+          Serial.println(F(">"));
+          state = UPDATE_ROLL;
+        }
+        break;
+
+      case UPDATE_ROLL:
+        {
+          Serial.print(F("<roll: "));
+          Serial.print(roll);
+          Serial.println(F(">"));
+          state = UPDATE_YAW; //TODO: why skip acceleration?
+          // vertical_accel = getVerticalAcceleration(-pitch, roll, accel_x, accel_y, accel_z);
+        }
+        break;
+
+      case UPDATE_ACCELERATION:
+        {
+          Serial.print(F("<vertical_acceleration: "));
+          Serial.print(vertical_accel);
+          Serial.println(F(">"));
+          state = UPDATE_YAW;
+        }
+
+      case UPDATE_YAW:
+        {
+          Serial.print(F("<yaw: "));
+          Serial.print((yaw));
+          Serial.println(F(">"));
+          state = UPDATE_TEMP;
+        }
+        break;
+
+      case UPDATE_TEMP:
+        {
+          char str_temp[4];
+          for (int i = 0; i < 4; i++) {
+            dtostrf(temp1, 1, 1, str_temp);
+          }
+          char string_to_rpi4[32] = "";
+          strcat(string_to_rpi4, c);
+          strcat(string_to_rpi4, str_temp);
+          strcat(string_to_rpi4, k);
+          Serial.println(string_to_rpi4);
+
+          state = UPDATE_PRESSURE;
+        }
+        break;
+
+      case UPDATE_PRESSURE:
+        {
+          char str_pressure[6];
+          for (int i = 0; i < 6; i++) {
+            dtostrf(pressure, 4, 2, str_pressure);
+          }
+          char string_to_rpi3[32] = "";
+          strcat(string_to_rpi3, b);
+          strcat(string_to_rpi3, str_pressure);
+          strcat(string_to_rpi3, k);
+          Serial.println(string_to_rpi3);
+
+          state = UPDATE_DEPTH;
+        }
     }
-
-    previousMillis = millis();
   }
-
-
 }
 
 
@@ -374,8 +368,6 @@ void sensor_fusion(float dt) {
 
     pitch = complementary_filter(alpha, pitch, gyro_pitch, orientation.pitch, dt);
     roll = complementary_filter(alpha, roll, gyro_roll, orientation.roll, dt);
-
-
   }
 }
 
