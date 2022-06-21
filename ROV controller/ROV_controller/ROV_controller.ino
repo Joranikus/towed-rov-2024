@@ -380,6 +380,7 @@ void setup() {
 
   // fix pin configuration
   stepper_sb.begin();
+  stepper_sb.flip_ref_direction();
   stepper_port.begin();
 
   while (!Serial) { //TODO: unnecessery? need start cmd to continue anyway
