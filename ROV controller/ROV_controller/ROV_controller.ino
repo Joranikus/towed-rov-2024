@@ -29,8 +29,8 @@ char charIn = ' ';
 char lastCharIn;
 
 //Wing positions
-double wing_angle_sb = 0;
-double wing_angle_port = 0;
+double target_angle_sb = 0;
+double target_angle_port = 0;
 
 //Feedback GUI
 String data_string;
@@ -84,11 +84,11 @@ PID pid_trim = PID(&roll, &trim_angle, &set_point_roll, pid_roll_p, pid_roll_i, 
 // moves both stepper towards target angle
 void step_both() {
   // step if stepper is at wrong angle
-  if (wing_angle_sb != stepper_sb.get_angle()) {
-    stepper_sb.rotate(wing_angle_sb);
+  if (target_angle_sb != stepper_sb.get_angle()) {
+    stepper_sb.rotate(target_angle_sb);
   }
-  if (wing_angle_port != stepper_port.get_angle()) {
-    stepper_port.rotate(wing_angle_port);
+  if (target_angle_port != stepper_port.get_angle()) {
+    stepper_port.rotate(target_angle_port);
   }
 }
 
@@ -120,7 +120,7 @@ bool setTargetMode(int newTargetMode, int wing_pos = 0) {
 
 
 /**
-  Maps the values, returning a double
+  Maps the values, returning a double TODO: Remove, not used
   only manual and depth mode is included at this stage.
    @param value is the value that is being mapped, in and outputs sets the range.
 */
@@ -131,8 +131,8 @@ double mapf(double value, double minIn, double maxIn, double minOut, double maxO
 
 
 void compensateWingToPitch() {
-  wing_angle_sb -= pitch_compensation;
-  wing_angle_port -= pitch_compensation;
+  target_angle_sb -= pitch_compensation;
+  target_angle_port -= pitch_compensation;
 }
 
 
@@ -142,19 +142,19 @@ void compensateWingToPitch() {
 void trimWingPos() {
   if (wing_angle + trim_angle > max_wing_angle) {
 
-    wing_angle_sb = max_wing_angle;
-    wing_angle_port = max_wing_angle - 2 * trim_angle;
+    target_angle_sb = max_wing_angle;
+    target_angle_port = max_wing_angle - 2 * trim_angle;
   }
   else if (wing_angle - trim_angle < -max_wing_angle) {
 
-    wing_angle_sb = -max_wing_angle + 2 * trim_angle;
-    wing_angle_port = -max_wing_angle;
+    target_angle_sb = -max_wing_angle + 2 * trim_angle;
+    target_angle_port = -max_wing_angle;
   } else {
-    wing_angle_sb = wing_angle - trim_angle;
-    wing_angle_port = wing_angle + trim_angle;
+    target_angle_sb = wing_angle - trim_angle;
+    target_angle_port = wing_angle + trim_angle;
   }
-  wing_angle_sb = constrain(wing_angle_sb, -max_wing_angle, max_wing_angle);
-  wing_angle_port = constrain(wing_angle_port, -max_wing_angle, max_wing_angle);
+  target_angle_sb = constrain(target_angle_sb, -max_wing_angle, max_wing_angle);
+  target_angle_port = constrain(target_angle_port, -max_wing_angle, max_wing_angle);
 }
 
 
@@ -186,7 +186,6 @@ void set_pitch_compensation() {
 
 /**
   Updates the GUI with the actual wing positions.
-  TODO change to new class
 */
 void updateWingPosGUI(double pos_sb, double pos_port) {
 
@@ -213,7 +212,7 @@ void translateString(String s) {
 
   String part01 = getValue(s, ':', 0);
   String part02 = getValue(s, ':', 1);
-  double double_part02 = part02.toFloat();
+  double double_part02 = part02.toFloat(); // toDouble does not work with teensy 4.0
 
   if (part01.equals("reset")) {
     state = CALIBRATE_STATE;
@@ -228,7 +227,7 @@ void translateString(String s) {
     } else if (part02.equals("False")) {
       setTargetMode(MANUAL_STATE);
       Serial.println("<auto_mode:True>");
-      manual_wing_pos = (int) wing_angle_sb;
+      manual_wing_pos = (int) target_angle_sb; //TODO why int and not double/float?
     } else {
       Serial.println("<auto_mode:False>");
     }
@@ -356,9 +355,9 @@ String getValue(String data, char separator, int index)
 
 //*** SETUP ****************************************************************
 void setup() {
-  //Serial.begin(57600); not necessary with Teensy
+  // Serial.begin(57600); unnecessary with Teensy
 
-  //Reset at start
+  // Wait for start command
   bool reset_ardu = false;
   while (!reset_ardu) {
     Serial.println("<StepperArduino:0>");
@@ -371,20 +370,20 @@ void setup() {
     }
     delay(1);
   }
-  //turn the PIDs on and set min/max output
+
+  // turn the PIDs on and set min/max output
   pid_depth.SetOutputLimits(-max_pid_output, max_pid_output);
   pid_trim.SetOutputLimits(-max_trim, max_trim);
-  pinMode(DIR_PIN_PORT, OUTPUT);
-  pinMode(STEP_PIN_PORT, OUTPUT);
-  pinMode(SENSOR_PIN_PORT, INPUT);
-  pinMode(DIR_PIN_SB, OUTPUT);
-  pinMode(STEP_PIN_SB, OUTPUT);
-  pinMode(SENSOR_PIN_SB, INPUT);
   pid_depth.SetMode(MANUAL);
   pid_trim.SetMode(MANUAL);
   data_string.reserve(200);
-  while (!Serial) {
-    //wait to connect
+
+  // fix pin configuration
+  stepper_sb.begin();
+  stepper_port.begin();
+
+  while (!Serial) { //TODO: unnecessery? need start cmd to continue anyway
+    // wait to connect
   }
   Serial.setTimeout(0);
 }
@@ -395,6 +394,7 @@ void loop() {
 
   switch (state) {
 
+    // calibrate both steppers to center
     case CALIBRATE_STATE: {
 
         // continue calibration until finished
@@ -417,13 +417,15 @@ void loop() {
       }
       break;
 
+    // set manual wing angle from serial
     case MANUAL_STATE: {
-        wing_angle_sb = manual_wing_pos;
-        wing_angle_port = manual_wing_pos;
+        target_angle_sb = manual_wing_pos;
+        target_angle_port = manual_wing_pos;
         step_both();
       }
       break;
 
+    // auto mode to find correct wing angle
     case AUTO_DEPTH_STATE: {
 
         pid_depth.Compute();
@@ -433,8 +435,8 @@ void loop() {
         if (trim_angle != 0) {
           trimWingPos();
         } else {
-          wing_angle_sb = wing_angle;
-          wing_angle_port = wing_angle;
+          target_angle_sb = wing_angle;
+          target_angle_port = wing_angle;
         }
         step_both();
       }
@@ -448,13 +450,9 @@ void loop() {
   if (update_wing_pos > time_intervall) {
     //updateWingPosGUI(stepper_sb.get_angle(), stepper_port.get_angle());
     last_update_wing_pos = millis();
-
-    //Serial.print("wing_angle_sb: "); Serial.println(wing_angle_sb);
-    //Serial.print("stepper_sb.get_angle(): "); Serial.println(stepper_sb.get_angle());
   }
 
   char c = ' ';
-
   if (Serial.available()) {
     c = Serial.read();
   }
@@ -468,4 +466,3 @@ void loop() {
     data_string +=  c;
   }
 }
-//557
