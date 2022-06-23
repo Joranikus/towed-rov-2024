@@ -102,3 +102,8 @@ class SerialFinder:
             except (OSError, serial.SerialException):
                 pass
         return result
+
+
+if __name__ == "__main__":
+    sf = SerialFinder()
+    sf.find_com_ports()

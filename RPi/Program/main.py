@@ -28,6 +28,7 @@ alarm3 = Alarm('incline_too_steep', 'False')
 alarm_list.append(alarm1)
 alarm_list.append(alarm2)
 alarm_list.append(alarm3)
+
 #Creating threads
 payload_handler = PayloadHandler(sensor_list, arduino_command_queue, gui_command_queue,
                                  seafloor_sonar_queue, new_set_point_event,
@@ -37,6 +38,7 @@ payload_writer = PayloadWriter(sensor_list, alarm_list, gui_command_queue, threa
 serial_handler = SerialHandler(sensor_list, alarm_list, arduino_command_queue, gui_command_queue,
                                        set_point_queue, rov_depth_queue, thread_running_event)
 sea_floor_tracker = SeafloorTracker(150, 20, 20, 6, 10, seafloor_sonar_queue, new_set_point_event, set_point_queue, alarm_list)
+
 if __name__ == "__main__":
     arduino_command_queue = Queue()
     sensor_list = []
@@ -54,7 +56,7 @@ if __name__ == "__main__":
     payload_handler = PayloadHandler(sensor_list, arduino_command_queue, gui_command_queue,
                                      seafloor_sonar_queue, new_set_point_event,
                                      start_event, stop_event)
-    payload_writer = PayloadWriter(sensor_list, gui_command_queue, thread_running_event)
+    payload_writer = PayloadWriter(sensor_list, alarm_list, gui_command_queue, thread_running_event)
     serial_handler = SerialHandler(sensor_list, arduino_command_queue, gui_command_queue,
                                    set_point_queue, rov_depth_queue, thread_running_event)
     sea_floor_tracker = SeafloorTracker(length_rope=200, desired_distance=15, min_dist=10, dist_to_skip=5,
