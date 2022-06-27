@@ -1,7 +1,7 @@
 import threading
 import queue
 from Serial_communication.serial1 import SerialWriterReader
-from Serial_communication.serial_finder import SerialFinder
+from serial_finder import find_serial_ports
 from multiprocessing import Queue, Process
 from threading import Thread
 from Serial_communication.handle_writer_queue import HandleWriterQueue
@@ -37,6 +37,8 @@ class SerialHandler(Thread):
                                   'yaw', 'roll', 'pitch', 'depth_beneath_rov',
                                   'vertical_acceleration','set_point_depth']
         self.VALID_ALARM_LIST = ['water_leakage']
+
+        # is a thread with modified __init__() and run()
         self.serial_message_received_handler = SerialMessageRecivedHandler(self.gui_command_queue, self.sensor_list, self.alarm_list,
                                                                            self.VALID_SENSOR_LIST, self.VALID_ALARM_LIST, self.reader_queue)
         self.serial_message_received_handler.daemon = True
@@ -69,7 +71,7 @@ class SerialHandler(Thread):
         Search for com ports and open serial communication for each port found.
         :return: true if a comport is found and false if not
         """
-        com_ports_list = self.find_com_ports()
+        com_ports_list = find_serial_ports()
         for com_port, port_name in com_ports_list.items():
             if 'IMU' in port_name:
                 self.serial_threads.append(self.__open_serial_thread(self.writer_queue_IMU,
@@ -90,13 +92,6 @@ class SerialHandler(Thread):
                 self.serial_connected.append('StepperArduino:' + com_port)
         return True
 
-    def find_com_ports(self):
-        """
-        Search for com ports
-        :return: dict of found com ports
-        """
-        serial_finder = SerialFinder()
-        return serial_finder.find_com_ports()
 
     def __open_serial_thread(self, output_queue, input_queue, com_port, baud_rate):
         """
