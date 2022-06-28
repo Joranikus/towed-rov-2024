@@ -1,7 +1,6 @@
 import queue
 from threading import Thread
-from sensor import Sensor
-from time import sleep, time
+from Serial_communication.sensor import Sensor
 
 
 class SerialMessageRecivedHandler(Thread):
@@ -27,12 +26,11 @@ class SerialMessageRecivedHandler(Thread):
 
     def run(self):
         """
-        Gets message from a queue with data from the Arduinos forward the responce to payload_writer or if sensor data
+        Gets message from a queue with data from the Arduinos, forward the responce to payload_writer, or if sensor data
         the list of sensor object will be updated.
         """
         counter_sent = 0
         counter_skip = 0
-        start = time()
         while True:
             try:
                 received_message = self.message_queue.get(timeout=0.01)
@@ -101,4 +99,4 @@ if __name__ == '__main__':
     test = SerialMessageRecivedHandler(q1, [], {}, q2)
     test.start()
     while True:
-        sleep(10)
+        pass

@@ -42,6 +42,7 @@ def find_serial_ports():
                 timer = time.time()  # current time
                 while not serial_port.inWaiting():
                     if time.time() - timer > 2:
+                        print(f"no response from {serial_port.name}")
                         break
 
                 # compute response from device

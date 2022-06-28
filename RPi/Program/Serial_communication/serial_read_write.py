@@ -1,7 +1,6 @@
 import serial
 import queue
 from threading import Thread
-from time import time
 
 ENCODING = 'utf-8'
 TERMINATOR = ':'
@@ -36,20 +35,22 @@ class SerialWriterReader(Thread):
 
     def run(self):
         while not self.stop:
+            # Send serial data from output_queue
             try:
-                test = self.output_queue.get(timeout=0.001)
-
-                self.__write_serial_data(test)
-                #print("test",test)
+                output_message = self.output_queue.get(timeout=0.001)
+                self.__write_serial_data(output_message)
             except queue.Empty:
                 pass
             except TypeError:
                 pass
+
+            # Get input from serial and put into input queue
             incoming_message = self.__read_incoming_data()
             for message in incoming_message:
                 if message:
                     try:
                         if not "Arduino" in message:
+                            print(f"message received: {message}")
                             try:
                                 self.input_queue.put_nowait(message)
                                 msg = message.split(TERMINATOR, 1)[0]
@@ -100,7 +101,6 @@ class SerialWriterReader(Thread):
         :return: message read from serial port
         """
         data_received = []
-        message_received = ""
         try:
             data = self.serial_port.read(self.serial_port.in_waiting or 1)
             for byte in serial.iterbytes(data):
@@ -129,7 +129,7 @@ if __name__ == '__main__':
     q1 = queue.Queue()
     q2 = queue.Queue()
     q3 = queue.Queue()
-    ser = SerialWriterReader(q1, q2, '/dev/ttyUSB0', 115200, q3)
+    ser = SerialWriterReader(q1, q2, '/dev/ttyACM0', 115200, q3)  # tip: run the serial_finder to find a port
     ser.daemon = True
     ser.start()
     while True:
