@@ -1,3 +1,6 @@
+/*  Edit by tovedROV 2022
+ *  
+ */
 #include <ping1d.h>
 #include <Wire.h>
 #include "MS5837.h"
@@ -146,24 +149,9 @@ void calibrate_gyro() {
 
 
 void setup() {
-  // Use 9600 bits per second to communicate with the Ping dev  ice
+  // Use 9600 bits per second to communicate with the Ping device
   Serial2.begin(9600);
-
-  // Use built in Serial port to communicate with the Arduino IDE Serial Monitor
   //Serial.begin(57600); unnecessary with teensy
-
-  // wait for start command from serial
-  bool reset_ardu = false;
-  while (!reset_ardu) {
-    Serial.println("<SensorArduino:0>");
-    String msg = Serial.readString();
-    String part01 = getValue(msg, ':', 0);
-
-    part01.replace("<", "");
-    if (part01 == "start") {
-      reset_ardu = true;
-    }
-  }
 
   pinMode(LED_BUILTIN, OUTPUT);
   pinMode(D2, OUTPUT);
@@ -418,7 +406,7 @@ float low_pass_filter(float alpha, float new_val, float prev_val) {
 
 float getVerticalAcceleration(float roll_angle, float pitch_angle, float accel_x, float accel_y, float accel_z) {
 
-  //the imu is rotated in the rov
+  // the imu is rotated in the rov
   pitch_angle = pitch_angle * PI / 180; //degrees to radians
   roll_angle = roll_angle * PI / 180;
   roll_angle += PI / 2; //rotate measured angles
@@ -433,7 +421,7 @@ float getVerticalAcceleration(float roll_angle, float pitch_angle, float accel_x
 }
 
 
-//separates string message
+// separates string message
 String getValue(String data, char separator, int index) {
   int found = 0;
   int strIndex[] = {0, -1};
@@ -449,12 +437,12 @@ String getValue(String data, char separator, int index) {
 }
 
 
-//Translate incomming messages and check if a known message
+// Translate incomming messages and check if a known message
 void translateString(String s) {
   String part01 = getValue(s, ':', 0);
   String part02 = getValue(s, ':', 1);
+  
   if (part01.equals("depth_rov_offset")) {
-
     responde("depth_rov_offset:True");
     depth_rov_offset = part02.toFloat();
 
@@ -494,6 +482,9 @@ void translateString(String s) {
   else if (part01.equals("Software_uart")) {
     software_uart = part02;
     responde("Software_uart:True");
+  }
+  else if (part01.equals("request_name")){
+    responde("device_name:SensorArduino"); // TODO: change to SensorTeensy when fixed serial on RPi
   }
 }
 
