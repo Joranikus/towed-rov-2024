@@ -1,6 +1,6 @@
 import queue
 from threading import Thread
-from Serial_communication.sensor import Sensor
+from sensor import Sensor
 
 
 class SerialMessageRecivedHandler(Thread):

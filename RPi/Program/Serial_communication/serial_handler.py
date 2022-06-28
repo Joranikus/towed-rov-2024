@@ -2,7 +2,7 @@ from multiprocessing import Queue
 from threading import Thread
 
 from Serial_communication.serial_read_write import SerialWriterReader
-from serial_finder import find_serial_ports
+from Serial_communication.serial_finder import find_serial_ports
 from Serial_communication.handle_writer_queue import HandleWriterQueue
 from Serial_communication.serial_message_recived_handler import SerialMessageRecivedHandler
 
@@ -45,7 +45,7 @@ class SerialHandler(Thread):
         self.handle_writer_queue = HandleWriterQueue(self.reader_queue, self.writer_queue, self.writer_queue_IMU,
                                                      self.writer_queue_sensor_arduino, self.writer_queue_stepper_arduino,
                                                      self.from_arduino_to_arduino_queue, set_point_queue, rov_depth_queue, self.VALID_SENSOR_LIST)
-
+        
     def run(self):
         while self.thread_running_event.is_set():
             if not self.com_port_found:
@@ -58,6 +58,7 @@ class SerialHandler(Thread):
                 test = self.handle_writer_queue.put_in_writer_queue()
                 self.com_port_found = test
         self.com_port_found = False
+        
 
     def __close_threads(self):
         for thread in self.serial_threads:

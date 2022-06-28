@@ -37,26 +37,28 @@ def find_serial_ports():
             print(f'\nChecking {serial_port.name} at {baud_rate} Baud:')
 
             try:
+                # request the name of the device
+                serial_port.write("<request_name:1>".encode('utf-8'))
+
                 # wait for response from serial device
-                # max waiting time is 2s
+                # max waiting time is set to 2s
                 timer = time.time()  # current time
-                while not serial_port.inWaiting():
-                    if time.time() - timer > 2:
-                        print(f"no response from {serial_port.name}")
-                        break
+                while time.time() - timer < 2:
+                    # read response if available
+                    if serial_port.in_waiting():
+                        message_received = serial_port.readline()
+                        message_received = message_received.strip().decode('utf-8').split(":")  # convert to readable data
 
-                # compute response from device
-                if serial_port.inWaiting:
-                    message_received = serial_port.readline()
-                    message_received = message_received.strip().decode('utf-8').split(":")
+                        if "device_name" in message_received[0]:
+                            device_name = message_received[0].replace('<', '')
+                            print(f" found device : {device_name}")
 
-                    device_name = message_received[0].replace('<', '')
-                    print(f" found device : {device_name}")
+                            port_name_list[key] = device_name  # add port and name to return dict
 
-                    port_name_list[key] = device_name
+                            serial_port.reset_input_buffer()
+                            serial_port.close()
 
-                    serial_port.reset_input_buffer()
-                    serial_port.close()
+                            break
 
             except (Exception) as e:
 

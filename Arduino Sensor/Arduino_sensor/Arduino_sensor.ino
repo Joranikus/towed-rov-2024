@@ -20,6 +20,8 @@ static const uint8_t arduinoTxPin = 8; //Serial1 tx
 static Ping1D ping { Serial2 };
 SoftwareSerial software_serial { 20, 21 };
 
+String DEVICE_NAME = "device_name:SensorArduino";  //TODO: change to SensorTeensy after PRi is fixed
+
 const int UPDATE_DEPTH        = 0;
 const int UPDATE_PING         = 1;
 const int UPDATE_PITCH        = 2;
@@ -184,7 +186,7 @@ void setup() {
 
 void loop() {
   // Checks if data is received from serial
-  while (Serial.available() > 0) {
+  while (Serial.available()) {
     // get the new byte:
     char inChar = (char)Serial.read();
     // add it to the inputString:
@@ -484,7 +486,7 @@ void translateString(String s) {
     responde("Software_uart:True");
   }
   else if (part01.equals("request_name")){
-    responde("device_name:SensorArduino"); // TODO: change to SensorTeensy when fixed serial on RPi
+    responde(DEVICE_NAME);
   }
 }
 
