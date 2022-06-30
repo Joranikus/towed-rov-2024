@@ -6,7 +6,9 @@
 
 #include <PID_v1.h>
 #include <SoftwareSerial.h>
-#include  "WingStepper.h"
+#include <WingStepper.h>
+
+String DEVICE_NAME = "<device_name:StepperArduino>";  //TODO: change to StepperTeensy after PRi is fixed
 
 //Pins connected to the Teensy
 const int DIR_PIN_SB    = 2;
@@ -220,6 +222,10 @@ void translateString(String s) {
     cal_status_port = false;
   }
 
+  else if (part01.equals("request_name")) {
+    Serial.println(DEVICE_NAME);
+  }
+
   else if (part01.equals("auto_mode")) {
     if (part02.equals("True")) {
       setTargetMode(AUTO_DEPTH_STATE);
@@ -357,20 +363,6 @@ String getValue(String data, char separator, int index)
 void setup() {
   // Serial.begin(57600); unnecessary with Teensy
 
-  // Wait for start command
-  bool reset_ardu = false;
-  while (!reset_ardu) {
-    Serial.println("<StepperArduino:0>");
-    String msg = Serial.readString();
-    String part01 = getValue(msg, ':', 0);
-
-    part01.replace("<", "");
-    if (part01 == "start") {
-      reset_ardu = true;
-    }
-    delay(1);
-  }
-
   // turn the PIDs on and set min/max output
   pid_depth.SetOutputLimits(-max_pid_output, max_pid_output);
   pid_trim.SetOutputLimits(-max_trim, max_trim);
@@ -383,15 +375,26 @@ void setup() {
   stepper_sb.flip_ref_direction();
   stepper_port.begin();
 
-  while (!Serial) { //TODO: unnecessery? need start cmd to continue anyway
-    // wait to connect
-  }
   Serial.setTimeout(0);
 }
 
 
 //*** LOOP ******************************************************************
 void loop() {
+  // get input char from serial
+  char c = ' ';
+  if (Serial.available()) {
+    c = Serial.read();
+  }
+  if (c == '>') {
+    data_string.trim();
+    translateString(data_string);
+    data_string = "";
+  }
+  else if (c != ' ' && c != '\n' && c != '<') {
+    data_string +=  c;
+  }
+
 
   switch (state) {
 
@@ -428,7 +431,6 @@ void loop() {
 
     // auto mode to find correct wing angle
     case AUTO_DEPTH_STATE: {
-
         pid_depth.Compute();
         Serial.print("wing angle: ");
         Serial.println(wing_angle);
@@ -451,19 +453,5 @@ void loop() {
   if (update_wing_pos > time_intervall) {
     //updateWingPosGUI(stepper_sb.get_angle(), stepper_port.get_angle());
     last_update_wing_pos = millis();
-  }
-
-  char c = ' ';
-  if (Serial.available()) {
-    c = Serial.read();
-  }
-
-  if (c == '>') {
-    data_string.trim();
-    translateString(data_string);
-    data_string = "";
-  }
-  else if (c != ' ' && c != '\n' && c != '<') {
-    data_string +=  c;
   }
 }
