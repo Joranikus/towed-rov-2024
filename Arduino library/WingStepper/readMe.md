@@ -2,8 +2,10 @@
 WingStepper is a simple library for controlling a stepper.  
   
 Author: towedROV NTNU 2022. 
-  
-Note: see the StepperWing_Demo.ino for demonstration and stepper testing.
+
+If you edit this library, please make sure to edit source and not local copy. (source is located together with ROV_controller)
+
+Note: see the StepperWing_Demo.ino in examples for demonstration and stepper testing.
 
 ## Initialize class  
 

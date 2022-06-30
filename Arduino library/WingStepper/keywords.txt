@@ -1,0 +1,27 @@
+#######################################
+# Syntax Coloring Map For WingStepper library
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+WingStepper	KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+calibrate	KEYWORD2
+rotate	KEYWORD2
+set_step_delay_us	KEYWORD2
+flip_ref_direction	KEYWORD2
+set_offset_angle	KEYWORD2
+get_angle	KEYWORD2
+get_pos	KEYWORD2
+set_angle_to_step_const	KEYWORD2
+get_angle_to_step_const	KEYWORD2
+
+#######################################
+# Constants (LITERAL1)
+#######################################
