@@ -12,8 +12,8 @@
 
 Adafruit_FXOS8700 accelmag = Adafruit_FXOS8700(0x8700A, 0x8700B);
 Adafruit_FXAS21002C gyro = Adafruit_FXAS21002C(0x0021002C);
-Adafruit_9DOF                dof   = Adafruit_9DOF();
-#include <SimpleKalmanFilter.h>
+Adafruit_9DOF dof   = Adafruit_9DOF();
+//#include <SimpleKalmanFilter.h>
 const int LEAKAGE_DETECTOR = 2;
 static const uint8_t arduinoRxPin = 7; //Serial1 rx
 static const uint8_t arduinoTxPin = 8; //Serial1 tx
@@ -178,9 +178,6 @@ void setup() {
   initSensors();
   calibrate_gyro();
   set_init_values();
-  while (!Serial) {
-    //wait to connect
-  }
 }
 
 
