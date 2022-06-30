@@ -1,6 +1,7 @@
 import serial
 import queue
 from threading import Thread
+from time import sleep
 
 ENCODING = 'utf-8'
 TERMINATOR = ':'
@@ -50,16 +51,11 @@ class SerialWriterReader(Thread):
                 if message:
                     try:
                         if not "Arduino" in message:
-                            print(f"message received: {message}")
-                            try:
-                                self.input_queue.put_nowait(message)
-                                msg = message.split(TERMINATOR, 1)[0]
-                                if msg in self.FROM_ARDUINO_TO_ARDUINO:
-                                    try:
-                                        self.from_arduino_to_arduino_queue.put_nowait(message)
-                                    except queue.Full:
-                                        pass
-                            except queue.Full:
+                            self.input_queue.put_nowait(message)
+                            msg = message.split(TERMINATOR, 1)[0]
+                            if msg in self.FROM_ARDUINO_TO_ARDUINO:
+                                self.from_arduino_to_arduino_queue.put_nowait(message)
+                    except queue.Full:
                                 pass
                     except TypeError:
                         pass
@@ -98,26 +94,28 @@ class SerialWriterReader(Thread):
     def __read_incoming_data(self):
         """
         reads from serial port
-        :return: message read from serial port
+        :return: message read from serial port as a string "name:number"
         """
-        data_received = []
+        msg_received = ''
         try:
-            data = self.serial_port.read(self.serial_port.in_waiting or 1)
-            for byte in serial.iterbytes(data):
-                if byte == START:
-                    self.in_packet = True
-                elif byte == STOP:
-                    self.in_packet = False
-                    data_received.append(self.handle_packet(bytes(self.packet)))  # make read-only copy
-                    del self.packet[:]
-                elif self.in_packet:
-                    self.packet.extend(byte)
-                else:
-                    pass
+        
+            if (self.serial_port.in_waiting > 0):
+                msg_received = self.serial_port.readline()
+                # format message: remove newline, decode from utf-8, remove outer symbols, 
+                msg_received = msg_received.strip().decode('utf-8').replace('<', '').replace('>', '')
 
         except (Exception) as e:
-            print(e, "serial1")
-        return data_received
+         #   print(f"{e} - could not read data from {self.com_port} - serial_read_write")
+          #
+            print(f"Is port open: {self.serial_port.is_open}")
+            self.serial_port.close()
+            print("closed port {self.com_port}")
+            print(f"Is port open: {self.serial_port.is_open}")
+            sleep(1)
+            self.serial_port.open()
+            print("open port {self.com_port}")
+            print(f"Is port open: {self.serial_port.is_open}")
+        return msg_received
 
     def stop_thread(self):
         self.stop = True
@@ -129,7 +127,7 @@ if __name__ == '__main__':
     q1 = queue.Queue()
     q2 = queue.Queue()
     q3 = queue.Queue()
-    ser = SerialWriterReader(q1, q2, '/dev/ttyACM0', 115200, q3)  # tip: run the serial_finder to find a port
+    ser = SerialWriterReader(q1, q2, '/dev/ttyACM1', 115200, q3)  # tip: run the serial_finder to find a port
     ser.daemon = True
     ser.start()
     while True:

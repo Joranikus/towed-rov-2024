@@ -22,13 +22,13 @@ def find_serial_ports():
     print('Available Ports: ', port_names)
 
     port_name_list = {}
-    for search_runs in range(3):
+    for search_runs in range(1): # write 3 if you want to search multible baudrates
         if search_runs == 0:
-            baud_rate = 9600
+            baud_rate = 115200
         if search_runs == 1:
             baud_rate = 57600
         if search_runs == 2:
-            baud_rate = 115200
+            baud_rate = 9600
 
         for key in port_names:
             serial_port = serial.Serial(key, baud_rate, timeout=1, write_timeout=2,
@@ -38,7 +38,7 @@ def find_serial_ports():
 
             try:
                 # send request for the name of the device
-                serial_port.write("request_name:0>".encode('utf-8'))
+                serial_port.write("<request_name:0>".encode('utf-8'))
 
                 # wait for response from serial device
                 # max waiting time is set to 2s
@@ -50,7 +50,7 @@ def find_serial_ports():
                         message_received = message_received.strip().decode('utf-8').split(":")  # convert to readable data
 
                         if "device_name" in message_received[0]:
-                            device_name = message_received[1].replace('<', '')
+                            device_name = message_received[1].replace('>', '')
                             print(f" found device : {device_name}")
 
                             port_name_list[key] = device_name  # add port and name to return dict
@@ -59,14 +59,17 @@ def find_serial_ports():
                             serial_port.close()
 
                             break
-
-            except (Exception) as e:
+                        
+            except serial.SerialTimeoutException as timeout:
+                print(f"{timeout}: device did not respond")
+                
+            except Exception as e:
 
                 print(e, '- in serial_finder')
 
                 try:
                     serial_port.close()
-                except (Exception) as e:
+                except Exception as e:
                     print(e, '- in serial_finder')
         search_runs = search_runs + 1
     print('Device finder complete\n')

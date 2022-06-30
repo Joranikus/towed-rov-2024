@@ -1,6 +1,7 @@
 import queue
 from send_and_receive.message_receiver import MessageReceiver
 from send_and_receive.command_receiver import CommandReceiver
+from payloads.payload_reader import PayloadReader
 from GPIO_writer import GPIOWriter
 from threading import Thread
 from multiprocessing import Queue
@@ -27,6 +28,7 @@ class PayloadHandler(Thread):
         self.gui_command_queue = gui_command_queue
         self.command_queue = command_queue
         self.gpio_writer = GPIOWriter()
+        self.payload_reader = PayloadReader()
         self.start_event = start_event
         self.stop_event = stop_event
         self.seafloor_sonar_queue = seafloor_sonar_queue

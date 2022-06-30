@@ -64,7 +64,7 @@ char * c = "<temperature:";
 char* n = "<depth_beneath_rov:";
 char* k = ">";
 const long imu_intervall = 10;
-const long transmit_interval = 500;    //was 20. edit for debug
+const long transmit_interval = 20;
 unsigned long previousMillis = 0;
 
 unsigned long previous_imu_update = 0;
