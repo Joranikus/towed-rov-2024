@@ -30,8 +30,7 @@ class PayloadWriter(Thread):
         while self.thread_running_event.is_set():
             self.__add_respons_to_queue()
             self.message_dispatcher.publish()
-            self.__add_alarm_to_queue()
-            self.message_dispatcher.publish()
+            #self.__add_alarm_to_queue()
             now  = time.monotonic()
             if now - previous_sensor >= self.interval_sensor:
                 self.__merge_sensor_payload()
@@ -81,9 +80,9 @@ class PayloadWriter(Thread):
                 "payload_name": "response",
                 "payload_data": json_command
             }
-            print(json_command)
+            print(f"json_command: {json_command}")
             self.message_queue.put(command_structure)
-            #print(command_structure, "responce")
+            print(command_structure, "responce")
         except queue.Empty:
             pass
         except IndexError:

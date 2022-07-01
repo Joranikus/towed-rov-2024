@@ -47,16 +47,19 @@ class SerialHandler(Thread):
                                                      self.from_arduino_to_arduino_queue, set_point_queue, rov_depth_queue, self.VALID_SENSOR_LIST)
         
     def run(self):
+        print("run handler")
         while self.thread_running_event.is_set():
             if not self.com_port_found:
                 self.__close_threads()
                 self.com_port_found = self.__find_com_ports()
+                print(f"back to handler: {self.com_port_found}")
                 if self.com_port_found:
                     for serial_found in self.serial_connected:
                         self.reader_queue.put(serial_found)
             while self.com_port_found:
                 test = self.handle_writer_queue.put_in_writer_queue()
                 self.com_port_found = test
+            print("byeeee")
         self.com_port_found = False
         
 

@@ -104,16 +104,22 @@ class SerialWriterReader(Thread):
                 # format message: remove newline, decode from utf-8, remove outer symbols, 
                 msg_received = msg_received.strip().decode('utf-8').replace('<', '').replace('>', '')
 
-        except (Exception) as e:
-         #   print(f"{e} - could not read data from {self.com_port} - serial_read_write")
-          #
+        except Exception as e:
+            print(f"{e} - could not read data from {self.com_port} - serial_read_write")
+          
             print(f"Is port open: {self.serial_port.is_open}")
             self.serial_port.close()
-            print("closed port {self.com_port}")
+            print(f"closed port {self.com_port}")
             print(f"Is port open: {self.serial_port.is_open}")
             sleep(1)
-            self.serial_port.open()
-            print("open port {self.com_port}")
+            
+            try:
+                self.serial_port.open()
+            except serial.SerialException as ErrSer:
+                print(ErrSer.__class__.__name__)
+                print(f"{ErrSer}: could not reconnect! (loose wires?)")
+                
+            print(f"open port {self.com_port}")
             print(f"Is port open: {self.serial_port.is_open}")
         return msg_received
 

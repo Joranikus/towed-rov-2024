@@ -4,7 +4,9 @@ from threading import Thread
 
 class CommandReceiver(Thread):
     """
-    ZMQ reply socket to receive request from the onshore computer
+    ZMQ reply socket to receive commands from the onshore computer (API)
+    
+    CommandReceiver will wait for a cmd, store the cmd in cmd_queue, and reply back with 'success: True'
     """
 
     def __init__(self, cmd_queue):
@@ -12,11 +14,11 @@ class CommandReceiver(Thread):
         self.ctx = zmq.Context()
         self.connection = self.ctx.socket(zmq.REP)
         self.cmd_queue = cmd_queue
-        self.ip = 'tcp://127.0.0.1:9004'
+        self.ip = 'tcp://192.168.0.102:9500'
 
     def bind(self):
         self.connection.bind(self.ip)
-        print("[STARTED] CommandReceiver")
+        print("[CommandReceiver]: Started")
 
     def send(self, data):
         self.connection.send_json(data)
@@ -26,14 +28,13 @@ class CommandReceiver(Thread):
         return command_received
 
     def run(self):
-        print("started")
         self.bind()
         while True:
-            print("run")
             try:
+                print("[CommandReciever]: Waiting for command from API") 
                 cmd = self.recv()
-                print("inc: ",cmd)
+                print(f"[CommandReciever]: Commmand recieved from API: {cmd}")
                 self.cmd_queue.put(cmd)
                 self.send({"success": True})
-            except (Exception) as e:
+            except Exception as e:
                 print(e, 'CommandReceiver')

@@ -1,14 +1,14 @@
 import zmq
 import queue
-from time import time
+from time import sleep
 
 
-class MessageDispatcher():
+class MessageDispatcher:
     """
-    ZMQ publisher for sending sensor data and responces to commands back to the onshore laptop
+    ZMQ publisher for sending sensor data and responses to commands back to the onshore laptop
     """
     def __init__(self, data_queue):
-        self.ip = 'tcp://127.0.0.1:8050'
+        self.ip = 'tcp://192.168.0.102:9000'
         context = zmq.Context()
         self.socket = context.socket(zmq.PUB)
         self.connect()
@@ -17,17 +17,17 @@ class MessageDispatcher():
 
     def publish(self):
         try:
+
+
             self.socket.send_json(self.data_queue.get(timeout=0.01))
-        except queue.Empty:
-            self.counter_skip += 1
-            test = self.data_queue.get(timeout=0.01)
-            self.counter_sent += 1
-            # print("send",test)
-            self.socket.send_json(test)
+        except queue.Empty as Err:
+            pass
+            #self.counter_skip += 1
+            #self.counter_sent += 1
+            
             # self.counter = self.counter +1
             # print(self.counter)
-        except queue.Empty:
-            self.counter_skip += 1
+            
         # DEBUGG HELP
 
     #         if (time() - self.start) > 5:
@@ -39,7 +39,7 @@ class MessageDispatcher():
     #             self.start = time()
 
     def disconnect(self):
-        self.socket.disconnect()
+        self.socket.disconnect(self.ip)
 
     def connect(self):
         self.socket.bind(self.ip)
