@@ -219,7 +219,7 @@ void loop() {
 
     // pullup on leakage detector. Normally HIGH //TODO: dobbel check, seems wrong
     if (digitalRead(LEAKAGE_DETECTOR) == HIGH) {
-      Serial.print(F("<water_leakage: "));
+      Serial.print(F("<water_leakage:"));
       Serial.print("True");
       Serial.println(F(">"));
     }
@@ -269,7 +269,7 @@ void loop() {
 
       case UPDATE_PITCH:
         {
-          Serial.print(F("<pitch: "));
+          Serial.print(F("<pitch:"));
           Serial.print(pitch);
           Serial.println(F(">"));
           state = UPDATE_ROLL;
@@ -278,7 +278,7 @@ void loop() {
 
       case UPDATE_ROLL:
         {
-          Serial.print(F("<roll: "));
+          Serial.print(F("<roll:"));
           Serial.print(roll);
           Serial.println(F(">"));
           state = UPDATE_YAW; //TODO: why skip acceleration?
@@ -288,7 +288,7 @@ void loop() {
 
       case UPDATE_ACCELERATION:
         {
-          Serial.print(F("<vertical_acceleration: "));
+          Serial.print(F("<vertical_acceleration:"));
           Serial.print(vertical_accel);
           Serial.println(F(">"));
           state = UPDATE_YAW;
@@ -296,7 +296,7 @@ void loop() {
 
       case UPDATE_YAW:
         {
-          Serial.print(F("<yaw: "));
+          Serial.print(F("<yaw:"));
           Serial.print((yaw));
           Serial.println(F(">"));
           state = UPDATE_TEMP;

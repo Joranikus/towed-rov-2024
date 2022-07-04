@@ -359,9 +359,27 @@ String getValue(String data, char separator, int index)
 }
 
 
+void readSerial() {
+  char c = ' ';
+  if (Serial.available()) {
+    c = Serial.read();
+  }
+  if (c == '<') {
+    data_string = "";
+  }
+  else if (c == '>') {
+    data_string.trim();
+    translateString(data_string);
+  }
+  else if (c != ' ' && c != '\n') {
+    data_string +=  c;
+  }
+}
+
+
 //*** SETUP ****************************************************************
 void setup() {
-  // Serial.begin(57600); unnecessary with Teensy
+  Serial.begin(57600);
 
   // turn the PIDs on and set min/max output
   pid_depth.SetOutputLimits(-max_pid_output, max_pid_output);
@@ -379,22 +397,11 @@ void setup() {
 }
 
 
+
 //*** LOOP ******************************************************************
 void loop() {
-  // get input char from serial
-  char c = ' ';
-  if (Serial.available()) {
-    c = Serial.read();
-  }
-  if (c == '>') {
-    data_string.trim();
-    translateString(data_string);
-    data_string = "";
-  }
-  else if (c != ' ' && c != '\n' && c != '<') {
-    data_string +=  c;
-  }
-
+  // get input from serial (USB)
+  readSerial();
 
   switch (state) {
 
@@ -414,9 +421,6 @@ void loop() {
           setTargetMode(MANUAL_STATE);
           Serial.println("<reset:True>");
         }
-
-        // write something to serial, and the program will stop TODO remove
-        while (Serial.available());
 
       }
       break;

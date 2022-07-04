@@ -8,7 +8,7 @@ class HandleWriterQueue:
     def __init__(self, reader_queue, writer_queue, writer_queue_IMU,
                  writer_queue_sensor_arduino, writer_queue_stepper_arduino,
                  from_arduino_to_arduino_queue, set_point_queue, rov_depth_queue, VALID_SENSOR_LIST):
-        self.reader_queue= reader_queue
+        self.reader_queue = reader_queue
         self.writer_queue = writer_queue
         self.writer_queue_IMU = writer_queue_IMU
         self.writer_queue_sensor_arduino = writer_queue_sensor_arduino
@@ -33,7 +33,6 @@ class HandleWriterQueue:
         try:
 
             from_arduino_to_arduino = self.from_arduino_to_arduino_queue.get(timeout=0.005)
-#             print(from_arduino_to_arduino)
             self.reader_queue.put(from_arduino_to_arduino)
             sensor = from_arduino_to_arduino.split(':')
             if sensor[0] == 'roll':
