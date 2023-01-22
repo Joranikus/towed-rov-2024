@@ -11,13 +11,15 @@
 String DEVICE_NAME = "<device_name:StepperArduino>";  //TODO: change to StepperTeensy after PRi is fixed
 
 //Pins connected to the Teensy
-const int DIR_PIN_SB    = 2;
-const int STEP_PIN_SB   = 3;
-const int SENSOR_PIN_SB = 4;
+const int DIR_PIN_SB    = 6;
+const int STEP_PIN_SB   = 7;
+const int ENABLE_SB     = 8;    //pin is LOW when enabled, driver has internal pulldown.
+const int SENSOR_PIN_SB = 9;
 
-const int DIR_PIN_PORT    = 5;
-const int STEP_PIN_PORT   = 6;
-const int SENSOR_PIN_PORT = 7;
+const int DIR_PIN_PORT    = 14;
+const int STEP_PIN_PORT   = 15;
+const int ENABLE_PORT     = 16;   //pin is LOW when enabled, driver has internal pulldown.
+const int SENSOR_PIN_PORT = 17;
 
 // class for stepper
 WingStepper stepper_sb(STEP_PIN_SB, DIR_PIN_SB, SENSOR_PIN_SB);
@@ -393,6 +395,14 @@ void setup() {
   stepper_sb.flip_ref_direction();
   stepper_port.begin();
 
+  // driver configuration
+  // connect the physical jumper to disable the driver.
+  // jumper should be disconnected for normal use.
+  pinMode(ENABLE_SB, OUTPUT);
+  pinMode(ENABLE_PORT, OUTPUT);
+  digitalWrite(ENABLE_SB, HIGH);  // HIGH enable pin will disable the driver
+  digitalWrite(ENABLE_PORT, HIGH);
+
   Serial.setTimeout(0);
 }
 
@@ -455,7 +465,7 @@ void loop() {
   // for sending wing position to RPi
   unsigned long update_wing_pos = millis() - last_update_wing_pos;
   if (update_wing_pos > time_intervall) {
-    //updateWingPosGUI(stepper_sb.get_angle(), stepper_port.get_angle());
+    updateWingPosGUI(stepper_sb.get_angle(), stepper_port.get_angle());
     last_update_wing_pos = millis();
   }
 }

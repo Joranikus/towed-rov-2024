@@ -1,3 +1,4 @@
+// expansion ports
 void send_sensor() {
   if (i2c_variable != "") {
       Serial.println("<" + i2c_variable + ":" + "trybe" + ">");

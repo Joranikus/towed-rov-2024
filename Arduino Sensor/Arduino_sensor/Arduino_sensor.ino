@@ -168,16 +168,20 @@ void setup() {
   //  }
   Wire.begin();
   Wire.setClock(10000);
+  // TODO: pressure sensor not working after rebuild
   while (!sensor.init()) {
     Serial.println(F("pressure not initialized!"));
     delay(1000);
   }
+  
   sensor.setModel(MS5837::MS5837_30BA);
   sensor.setFluidDensity(1029); // kg/m^3 (freshwater, 1029 for seawater)
   gyro.enableAutoRange(true);
   initSensors();
   calibrate_gyro();
   set_init_values();
+
+  Serial.println("Setup Done");
 }
 
 
