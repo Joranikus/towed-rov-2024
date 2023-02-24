@@ -3,11 +3,11 @@ void send_sensor() {
   if (i2c_variable != "") {
       Serial.println("<" + i2c_variable + ":" + "trybe" + ">");
   }
-  if (software_uart != "") {
-    if (software_serial.available()) {
-      Serial.println("<" + software_uart + ":" + software_serial.read() + ">");
-    }
-  }
+  //if (software_uart != "") {
+  //  if (software_serial.available()) {
+   //   Serial.println("<" + software_uart + ":" + software_serial.read() + ">");
+   // }
+  //}
   if (a0 != "") {
     Serial.println("<" + a0 + ":" + analogRead(A0) + ">");
   }

@@ -1,10 +1,12 @@
 /*  Edit by tovedROV 2022
- *  
- */
+
+*/
 #include <ping1d.h>
+#include "SoftwareSerial.h"
+
 #include <Wire.h>
 #include "MS5837.h"
-#include "SoftwareSerial.h"
+
 #include <Adafruit_FXOS8700.h>
 #include <Adafruit_FXAS21002C.h>
 #include <Adafruit_Sensor.h>
@@ -15,10 +17,12 @@ Adafruit_FXAS21002C gyro = Adafruit_FXAS21002C(0x0021002C);
 Adafruit_9DOF dof   = Adafruit_9DOF();
 //#include <SimpleKalmanFilter.h>
 const int LEAKAGE_DETECTOR = 2;
-static const uint8_t arduinoRxPin = 7; //Serial1 rx
-static const uint8_t arduinoTxPin = 8; //Serial1 tx
-static Ping1D ping { Serial2 };
-SoftwareSerial software_serial { 20, 21 };
+
+// Ping sonar
+static const uint8_t teensyRx2Pin = 7; //Serial1 rx
+static const uint8_t teensyTx2Pin = 8; //Serial1 tx
+SoftwareSerial pingSerial = SoftwareSerial(teensyRx2Pin, teensyTx2Pin);
+static Ping1D ping {pingSerial};
 
 String DEVICE_NAME = "device_name:SensorArduino";  //TODO: change to SensorTeensy after PRi is fixed
 
@@ -151,31 +155,30 @@ void calibrate_gyro() {
 
 
 void setup() {
-  // Use 9600 bits per second to communicate with the Ping device
-  Serial2.begin(9600);
-  //Serial.begin(57600); unnecessary with teensy
-
+  // pin setup
   pinMode(LED_BUILTIN, OUTPUT);
   pinMode(D2, OUTPUT);
   pinMode(D3, OUTPUT);
   pinMode(D4, OUTPUT);
   pinMode(LEAKAGE_DETECTOR, INPUT);
-  //  software_serial.begin(4800);
-  // wait until communication with the Ping device is established
-  // and the Ping device is successfully initialized
-  //  while (!ping.initialize()) {
-  //    Serial.println(F("echosounder did not initialize"));
-  //  }
+
+  // Pressure sensor setup
   Wire.begin();
-  Wire.setClock(10000);
-  // TODO: pressure sensor not working after rebuild
+  //Wire.setClock(10000);
   while (!sensor.init()) {
     Serial.println(F("pressure not initialized!"));
     delay(1000);
   }
-  
   sensor.setModel(MS5837::MS5837_30BA);
-  sensor.setFluidDensity(1029); // kg/m^3 (freshwater, 1029 for seawater)
+  sensor.setFluidDensity(1029);
+
+  // Ping sonar setup
+  pingSerial.begin(9600);
+  while (!ping.initialize()) {
+    Serial.println(F("ping sonar did not initialize"));
+  }
+
+  // other setup
   gyro.enableAutoRange(true);
   initSensors();
   calibrate_gyro();
@@ -230,6 +233,7 @@ void loop() {
 
     // change which data to send
     switch (state) {
+      // TODO: Why is it both depth and ping?
       case UPDATE_DEPTH:
         {
           char str_depth[6]; // Depth
@@ -444,7 +448,7 @@ String getValue(String data, char separator, int index) {
 void translateString(String s) {
   String part01 = getValue(s, ':', 0);
   String part02 = getValue(s, ':', 1);
-  
+
   if (part01.equals("depth_rov_offset")) {
     responde("depth_rov_offset:True");
     depth_rov_offset = part02.toFloat();
@@ -486,7 +490,7 @@ void translateString(String s) {
     software_uart = part02;
     responde("Software_uart:True");
   }
-  else if (part01.equals("request_name")){
+  else if (part01.equals("request_name")) {
     responde(DEVICE_NAME);
   }
 }
