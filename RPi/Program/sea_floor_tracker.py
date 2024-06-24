@@ -4,6 +4,8 @@ block of x sea floor measurements are sent to class
 measurements are sent to a cost function that finds a sp for a distance of 10 meters
 when a new set point is created, the set_point is sent to the optimal path algorithm, this algorithm returns index(0) as the new set_point
 """
+import queue
+
 import numpy as np
 from threading import Thread
 from time import sleep
@@ -190,7 +192,7 @@ if __name__ == "__main__":
     q1 = queue.Queue()
     q2 = queue.Queue()
     q3 = queue.Queue()
-    q4 = Queue()
+    q4 = queue.Queue()
     q1.put(15.01)
     q1.put(15.1)
     q1.put(15.2)
