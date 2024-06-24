@@ -24,6 +24,8 @@ class SerialWriterReader(Thread):
         self.packet = bytearray()
         self.FROM_ARDUINO_TO_ARDUINO = ['depth', 'roll', 'pitch']
 
+
+
     def run(self):
         while self.running:
             # write data to serial from output_queue
